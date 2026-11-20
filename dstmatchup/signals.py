@@ -9,8 +9,13 @@ No z-scoring or shrinkage happens here.
 import numpy as np
 import pandas as pd
 
+from dstmatchup.qb import qb_signal
+from dstmatchup.weather import weather_signal
+
 RATE_NAMES = ("turnovers_pg", "sack_rate_allowed", "ppg", "def_sacks_pg", "def_takeaways_pg")
 TURNOVER_COLS = ("passing_interceptions", "sack_fumbles_lost", "rushing_fumbles_lost", "receiving_fumbles_lost")
+OL_POSITIONS = ("LT", "LG", "C", "RG", "RT")
+INJURY_WEIGHTS = {"out": 1.0, "doubtful": 0.75, "questionable": 0.25}
 
 
 def _num(df: pd.DataFrame, name: str) -> pd.Series:
@@ -128,17 +133,79 @@ def _at(series: pd.Series, keys) -> np.ndarray:
     return series.reindex(keys).to_numpy(dtype=float)
 
 
+def rest_signal(opp_rest_days: float) -> float:
+    """Opponent rest: short rest (<= 5 days) helps the defense, long rest (>= 10) hurts it."""
+    if opp_rest_days is None or np.isnan(opp_rest_days):
+        return np.nan
+    if opp_rest_days <= 5:
+        return 1.0
+    if opp_rest_days >= 10:
+        return -1.0
+    return 0.0
+
+
+def _status_weight(report_status) -> float:
+    if not isinstance(report_status, str):
+        return 0.0
+    return INJURY_WEIGHTS.get(report_status.strip().lower(), 0.0)
+
+
+def ol_missing(injuries: pd.DataFrame, depth: pd.DataFrame, team: str, week: int) -> float:
+    """Weighted count of `team`'s starting offensive linemen who are injured in `week`.
+
+    Starters are depth rank 1 at LT, LG, C, RG, RT, taken from the team's latest
+    depth snapshot. Out 1.0, Doubtful 0.75, Questionable 0.25; backups add 0.
+    Returns NaN when the team has no depth rows (unknown), 0.0 when none is hurt.
+    """
+    team_depth = depth[depth["team"] == team]
+    if team_depth.empty:
+        return np.nan
+    if "dt" in team_depth.columns:
+        team_depth = team_depth[team_depth["dt"] == team_depth["dt"].max()]
+    starters = team_depth[team_depth["pos_abb"].isin(OL_POSITIONS) & (team_depth["pos_rank"] == 1)]
+    if starters.empty:
+        return np.nan
+    if injuries is None or injuries.empty:
+        return 0.0
+    hurt = injuries[(injuries["team"] == team) & (injuries["week"] == week)]
+    hurt = hurt[hurt["gsis_id"].isin(set(starters["gsis_id"].dropna()))]
+    if hurt.empty:
+        return 0.0
+    per_player = hurt.assign(_w=hurt["report_status"].map(_status_weight)).groupby("gsis_id")["_w"].max()
+    return float(per_player.sum())
+
+
+def _qb_value(status) -> float:
+    if not isinstance(status, str):
+        return np.nan
+    value = qb_signal(status)
+    return np.nan if value is None else value
+
+
 def build_signal_frame(
     matchups: pd.DataFrame,
     rates: pd.DataFrame,
     allowed: pd.DataFrame,
     lines: pd.DataFrame,
     cfg: dict,
+    qb_table: pd.DataFrame | None = None,
+    injuries: pd.DataFrame | None = None,
+    depth: pd.DataFrame | None = None,
+    forecast: dict | None = None,
+    week: int | None = None,
 ) -> pd.DataFrame:
     """One row per defense team (matchups.team) with raw, higher-is-better signals.
 
-    Columns: implied_total, turnovers, sack_rate, dst_pts_allowed, opp_ppg,
-    own_defense, home_away, opp_games, own_games.
+    Signal columns (exactly the [weights] names): implied_total, qb_status,
+    turnovers, sack_rate, dst_pts_allowed, opp_ppg, own_defense, home_away,
+    weather, rest, ol_injuries. Also opp_games and own_games for shrinkage.
+
+    Optional inputs: `qb_table` (team, qb_name, status) gives qb_status from the
+    opponent's QB; `injuries` + `depth` + `week` give ol_injuries from the
+    opponent's missing OL; `forecast` maps defense team to {"temp", "wind"} or
+    None. A missing qb_table, or injuries/depth/week, leaves that column NaN.
+    A missing forecast falls back to the roof-only weather signal.
+    rest and weather use matchups' opp_rest_days and roof when present.
     """
     w = float(cfg["scoring"]["blend_recent"])
     blended = pd.DataFrame(index=rates.index)
@@ -152,9 +219,33 @@ def build_signal_frame(
     opponent = matchups["opponent"].to_numpy()
     b_opp = blended.reindex(opponent)
     b_own = blended.reindex(defense)
+    n = len(defense)
+
+    if qb_table is not None:
+        statuses = qb_table.set_index("team")["status"]
+        qb_col = np.array([_qb_value(statuses.get(t)) for t in opponent], dtype=float)
+    else:
+        qb_col = np.full(n, np.nan)
+
+    if "opp_rest_days" in matchups.columns:
+        rest_col = np.array([rest_signal(x) for x in matchups["opp_rest_days"].to_numpy(dtype=float)])
+    else:
+        rest_col = np.full(n, np.nan)
+
+    roof = matchups["roof"].to_numpy() if "roof" in matchups.columns else np.full(n, None, dtype=object)
+    weather_col = np.array([
+        np.nan if (value := weather_signal(r, (forecast or {}).get(d))) is None else value
+        for r, d in zip(roof, defense)
+    ], dtype=float)
+
+    if injuries is not None and depth is not None and week is not None:
+        ol_col = np.array([ol_missing(injuries, depth, t, week) for t in opponent], dtype=float)
+    else:
+        ol_col = np.full(n, np.nan)
 
     out = pd.DataFrame({
         "implied_total": -_at(opp_implied, defense),
+        "qb_status": qb_col,
         "turnovers": b_opp["turnovers_pg"].to_numpy(dtype=float),
         "sack_rate": b_opp["sack_rate_allowed"].to_numpy(dtype=float),
         "dst_pts_allowed": _at(dst_allowed, opponent),
@@ -164,6 +255,9 @@ def build_signal_frame(
             + b_own["def_takeaways_pg"].to_numpy(dtype=float)
         ),
         "home_away": matchups["home"].astype(float).to_numpy(),
+        "weather": weather_col,
+        "rest": rest_col,
+        "ol_injuries": ol_col,
         "opp_games": rates["games"].reindex(opponent).fillna(0).astype(int).to_numpy(),
         "own_games": rates["games"].reindex(defense).fillna(0).astype(int).to_numpy(),
     }, index=pd.Index(defense, name="team"))
