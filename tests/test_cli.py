@@ -140,3 +140,18 @@ def test_python_m_entry_point_runs_help():
     )
     assert proc.returncode == 0
     assert "--breakdown" in proc.stdout
+
+
+def test_teams_filter_shows_played_game_for_away_side(fake_data, capsys):
+    code = cli.main(["--week", "5", "--teams", "GB"])
+    out = capsys.readouterr().out
+    assert code == 0
+    played_section = out.split("Already played this week:")[1].split("On bye:")[0]
+    assert "GB @ CHI" in played_section
+    assert "none" not in played_section
+
+
+def test_played_game_printed_once_when_both_sides_wanted(fake_data, capsys):
+    cli.main(["--week", "5", "--teams", "CHI,GB"])
+    out = capsys.readouterr().out
+    assert out.count("GB @ CHI") == 1

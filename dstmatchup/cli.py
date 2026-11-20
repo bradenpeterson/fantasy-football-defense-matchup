@@ -112,10 +112,20 @@ def format_result(result: dict, breakdown: bool = False) -> str:
     lines.append("")
     lines.append("Already played this week:")
     played = result["played"]
-    home_games = played[played["home"]] if len(played) else played
-    if len(home_games):
-        for g in home_games.itertuples(index=False):
-            lines.append(f"  {g.opponent} @ {g.team}")
+    printed = set()
+    game_lines = []
+    for g in played.itertuples(index=False):
+        key = frozenset((g.team, g.opponent))
+        if key in printed:
+            continue
+        printed.add(key)
+        # Home row of each game when present; both rows are kept, so print once.
+        if g.home:
+            game_lines.append(f"  {g.opponent} @ {g.team}")
+        else:
+            game_lines.append(f"  {g.team} @ {g.opponent}")
+    if game_lines:
+        lines.extend(game_lines)
     else:
         lines.append("  none")
 

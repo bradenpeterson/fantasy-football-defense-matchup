@@ -185,3 +185,11 @@ def test_nan_scores_sort_last(cfg):
     assert ranked["score"].iloc[-2:].isna().all()
     assert set(ranked["defense"].iloc[-2:]) == {"ARI", "ATL"}
     assert ranked["score"].iloc[:-2].notna().all()
+
+
+def test_teams_filter_keeps_played_game_for_away_side(cfg):
+    # CHI hosted GB in week 5 and the game is final. GB is the away side.
+    result = pipeline.run(week=5, teams=["GB"], cfg=cfg, data=make_data())
+    played = result["played"]
+    assert set(played["team"]) == {"CHI", "GB"}
+    assert set(played["opponent"]) == {"CHI", "GB"}

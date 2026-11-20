@@ -85,7 +85,8 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
     if teams is not None:
         wanted = {normalize_team(t) for t in teams}
         ranked = ranked[ranked["defense"].isin(wanted)].reset_index(drop=True)
-        played = played[played["team"].isin(wanted)].reset_index(drop=True)
+        keep = played["team"].isin(wanted) | played["opponent"].isin(wanted)
+        played = played[keep].reset_index(drop=True)
         byes = [t for t in byes if t in wanted]
 
     return {
