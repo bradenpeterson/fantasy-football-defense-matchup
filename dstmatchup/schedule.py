@@ -1,5 +1,6 @@
 """Schedule-derived views: current week, betting lines, matchups, byes."""
 
+import numpy as np
 import pandas as pd
 
 from dstmatchup.teams import ALL_TEAMS
@@ -56,13 +57,16 @@ def matchups(schedule: pd.DataFrame, week: int) -> pd.DataFrame:
     rows = []
     for g in _week_games(schedule, week).itertuples(index=False):
         played = pd.notna(g.result)
+        home_rest = getattr(g, "home_rest", np.nan)
+        away_rest = getattr(g, "away_rest", np.nan)
+        roof = getattr(g, "roof", None)
         for team, opp, home, rest, opp_rest in (
-            (g.home_team, g.away_team, True, g.home_rest, g.away_rest),
-            (g.away_team, g.home_team, False, g.away_rest, g.home_rest),
+            (g.home_team, g.away_team, True, home_rest, away_rest),
+            (g.away_team, g.home_team, False, away_rest, home_rest),
         ):
             rows.append(dict(
                 team=team, opponent=opp, home=home, gameday=g.gameday,
-                played=bool(played), rest_days=rest, opp_rest_days=opp_rest, roof=g.roof,
+                played=bool(played), rest_days=rest, opp_rest_days=opp_rest, roof=roof,
             ))
     return pd.DataFrame(rows, columns=[
         "team", "opponent", "home", "gameday", "played", "rest_days", "opp_rest_days", "roof",

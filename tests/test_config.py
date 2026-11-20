@@ -20,3 +20,9 @@ def test_load_config_rejects_negative_weight(tmp_path):
     bad.write_text(text.replace("qb_status = 20", "qb_status = -1"))
     with pytest.raises(ValueError):
         load_config(str(bad))
+
+
+def test_load_config_default_path_works_from_any_cwd(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    cfg = load_config()
+    assert cfg["weights"]["implied_total"] == 30

@@ -1,6 +1,7 @@
 """Load and validate config.toml."""
 
 import tomllib
+from pathlib import Path
 
 REQUIRED = {
     "weights": [
@@ -30,8 +31,14 @@ REQUIRED = {
 }
 
 
-def load_config(path: str = "config.toml") -> dict:
-    with open(path, "rb") as fh:
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_CONFIG_PATH = REPO_ROOT / "config.toml"
+
+
+def load_config(path: str | None = None) -> dict:
+    """Load config.toml. With no path, use the repository's config.toml."""
+    config_path = DEFAULT_CONFIG_PATH if path is None else path
+    with open(config_path, "rb") as fh:
         cfg = tomllib.load(fh)
 
     for section, keys in REQUIRED.items():

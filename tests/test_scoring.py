@@ -76,3 +76,9 @@ def test_scale_parameter():
     z = pd.DataFrame({"a": [1.0]}, index=["X"])
     out = score_teams(z, {"a": 1.0}, scale=10.0)
     assert out.loc["X", "score"] == pytest.approx(60.0)
+
+
+def test_zero_weight_present_signals_give_nan_score():
+    z = pd.DataFrame({"a": [1.0], "b": [np.nan]}, index=["X"])
+    out = score_teams(z, {"a": 0.0, "b": 10.0})
+    assert math.isnan(out.loc["X", "score"])

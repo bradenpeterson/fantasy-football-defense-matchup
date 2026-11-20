@@ -42,7 +42,7 @@ def score_teams(
 
     Returns a DataFrame indexed like ``z_by_signal`` with columns:
       - ``score``: clip(50 + scale * weighted_mean_z, 0, 100); NaN when every
-        signal is missing.
+        present signal has weight 0 (or every signal is missing).
       - ``missing``: list of signal names with NaN z for that team.
       - one contribution column per signal: rescaled_weight * z. Missing
         signals contribute 0.0 (not NaN), so the contribution columns sum to
@@ -57,7 +57,8 @@ def score_teams(
     rescaled = present.mul(w, axis=1).div(present_weight.replace(0.0, np.nan), axis=0)
 
     contrib = (rescaled * z).fillna(0.0)
-    weighted_mean_z = contrib.sum(axis=1).where(present.any(axis=1), np.nan)
+    has_weight = present_weight > 0
+    weighted_mean_z = contrib.sum(axis=1).where(has_weight, np.nan)
 
     score = (50.0 + scale * weighted_mean_z).clip(lower=0.0, upper=100.0)
 
