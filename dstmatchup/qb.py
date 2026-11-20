@@ -74,7 +74,7 @@ def qb_status(named_starter, dropback_leader, injury_status) -> str:
     if bucket is not None:
         return bucket
     if starter is None or leader is None:
-        return "starter"
+        return "unknown"
     return "starter" if names_match(starter, leader) else "backup"
 
 

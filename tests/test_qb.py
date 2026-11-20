@@ -32,12 +32,31 @@ def test_injury_overrides_leader_match():
     assert qb_status("Josh Allen", "J.Allen", "Out") == "out"
 
 
-def test_missing_leader_uses_named_starter():
-    assert qb_status("Bo Nix", None, None) == "starter"
+def test_missing_leader_is_unknown():
+    assert qb_status("Bo Nix", None, None) == "unknown"
 
 
-def test_missing_starter_uses_leader():
-    assert qb_status(None, "R.Wilson", None) == "starter"
+def test_missing_starter_is_unknown():
+    assert qb_status(None, "R.Wilson", None) == "unknown"
+
+
+def test_one_sided_input_with_out_injury_is_out():
+    assert qb_status("Bo Nix", None, "Out") == "out"
+    assert qb_status(None, "R.Wilson", "Questionable") == "questionable"
+
+
+def test_week_one_empty_pbp_makes_every_team_unknown():
+    schedule = pd.DataFrame({
+        "week": [1, 1],
+        "home_team": ["BUF", "KC"],
+        "away_team": ["MIA", "DEN"],
+        "home_qb_name": ["Josh Allen", "Patrick Mahomes"],
+        "away_qb_name": ["Tua Tagovailoa", "Bo Nix"],
+    })
+    pbp = pd.DataFrame(columns=["season_type", "week", "posteam", "passer_player_name", "qb_dropback"])
+    table = qb_status_table(schedule, pbp, pd.DataFrame(), 1)
+    assert len(table) == 4
+    assert set(table["status"]) == {"unknown"}
 
 
 def test_qb_signal_values():
