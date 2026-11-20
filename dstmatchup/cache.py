@@ -1,7 +1,8 @@
 """Parquet-backed cache for fetched DataFrames.
 
 Current-season files expire after ttl_hours (judged by file mtime).
-Past-season files never expire.
+Past-season files never expire. Writes are atomic (temp file + os.replace),
+and an unreadable cache file is deleted and refetched.
 """
 
 import os
@@ -28,8 +29,13 @@ def cached_frame(
             age_hours = (time.time() - os.path.getmtime(path)) / 3600.0
             fresh = age_hours < ttl_hours
         if fresh:
-            return pd.read_parquet(path)
+            try:
+                return pd.read_parquet(path)
+            except Exception:
+                os.remove(path)
 
     df = fetch()
-    df.to_parquet(path)
+    tmp_path = f"{path}.tmp"
+    df.to_parquet(tmp_path)
+    os.replace(tmp_path, path)
     return df

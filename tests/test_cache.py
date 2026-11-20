@@ -47,3 +47,18 @@ def test_past_season_never_expires(tmp_path):
             os.utime(p, (0, 0))
     cached_frame("sched", 2024, fetch, current_season=2026, ttl_hours=0, cache_dir=cache_dir)
     assert counter["n"] == 1
+
+
+def test_corrupt_cache_file_is_refetched(tmp_path):
+    counter = {"n": 0}
+    cache_dir = str(tmp_path / "cache")
+    fetch = _fetcher(counter)
+    cached_frame("sched", 2026, fetch, current_season=2026, ttl_hours=6, cache_dir=cache_dir)
+    path = os.path.join(cache_dir, "sched_2026.parquet")
+    with open(path, "wb") as fh:
+        fh.write(b"not a parquet file")
+    df = cached_frame("sched", 2026, fetch, current_season=2026, ttl_hours=6, cache_dir=cache_dir)
+    assert counter["n"] == 2
+    assert len(df) == 3
+    assert len(pd.read_parquet(path)) == 3
+    assert not any(f.endswith(".tmp") for f in os.listdir(cache_dir))
