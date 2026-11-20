@@ -1,0 +1,67 @@
+# Starting signal weights (rescaled to sum to 1 over the signals present).
+[weights]
+implied_total = 30
+qb_status = 20
+turnovers = 15
+sack_rate = 15
+dst_pts_allowed = 10
+opp_ppg = 5
+own_defense = 5
+home_away = 3
+weather = 3
+rest = 3
+ol_injuries = 3
+
+[scoring]
+shrink_k = 4          # shrinkage n/(n+k)
+display_scale = 25    # display score = clip(50 + display_scale * weighted_mean_z, 0, 100)
+blend_recent = 0.5    # weight on season stats vs last-N games
+last_n = 4
+
+# Yahoo D/ST scoring used as a points proxy.
+[yahoo]
+sack = 1
+interception = 2
+fumble_recovery = 2
+safety = 2
+td = 6
+blocked_kick = 2
+
+# Points-allowed tiers: inclusive min/max of points allowed by the offense.
+[[yahoo.tiers]]
+min = 0
+max = 0
+points = 10
+
+[[yahoo.tiers]]
+min = 1
+max = 6
+points = 7
+
+[[yahoo.tiers]]
+min = 7
+max = 13
+points = 4
+
+[[yahoo.tiers]]
+min = 14
+max = 20
+points = 1
+
+[[yahoo.tiers]]
+min = 21
+max = 27
+points = 0
+
+[[yahoo.tiers]]
+min = 28
+max = 34
+points = -1
+
+[[yahoo.tiers]]
+min = 35
+max = 999
+points = -4
+
+[defaults]
+available_teams = []

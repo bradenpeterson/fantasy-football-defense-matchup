@@ -1,0 +1,48 @@
+"""Load and validate config.toml."""
+
+import tomllib
+
+REQUIRED = {
+    "weights": [
+        "implied_total",
+        "qb_status",
+        "turnovers",
+        "sack_rate",
+        "dst_pts_allowed",
+        "opp_ppg",
+        "own_defense",
+        "home_away",
+        "weather",
+        "rest",
+        "ol_injuries",
+    ],
+    "scoring": ["shrink_k", "display_scale", "blend_recent", "last_n"],
+    "yahoo": [
+        "sack",
+        "interception",
+        "fumble_recovery",
+        "safety",
+        "td",
+        "blocked_kick",
+        "tiers",
+    ],
+    "defaults": ["available_teams"],
+}
+
+
+def load_config(path: str = "config.toml") -> dict:
+    with open(path, "rb") as fh:
+        cfg = tomllib.load(fh)
+
+    for section, keys in REQUIRED.items():
+        if section not in cfg:
+            raise ValueError(f"config missing section [{section}]")
+        for key in keys:
+            if key not in cfg[section]:
+                raise ValueError(f"config missing [{section}].{key}")
+
+    for name, value in cfg["weights"].items():
+        if value < 0:
+            raise ValueError(f"weight [{name}] must be non-negative, got {value}")
+
+    return cfg
