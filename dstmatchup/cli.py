@@ -103,7 +103,10 @@ def format_result(result: dict, breakdown: bool = False) -> str:
             _num(row.score, "{:.1f}"),
         ]
         if breakdown:
-            cells += [_num(getattr(row, c), "{:+.2f}") for c in contrib_cols]
+            cells += [
+                "n/a" if c[len("c_"):] in row.missing else _num(getattr(row, c), "{:+.2f}")
+                for c in contrib_cols
+            ]
         rows.append(cells)
 
     lines = [f"Week {result['week']} DST matchup ranking", ""]
@@ -146,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.teams is not None:
             teams = _parse_teams(args.teams)
+            if not teams:
+                raise ValueError("--teams needs at least one defense code, e.g. BUF,DEN")
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

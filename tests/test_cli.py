@@ -194,3 +194,28 @@ def test_backtest_discloses_qb_hindsight_and_ol_forced_zero(monkeypatch, capsys)
     qb_line = next(line for line in out.splitlines() if line.strip().startswith("qb_status"))
     assert "(hindsight)" in qb_line
     assert "ol_injuries is forced to 0" in out
+
+
+def test_empty_teams_list_is_an_error_not_an_empty_table(capsys):
+    code = cli.main(["--teams", ""])
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "--teams" in captured.err
+    assert "Defense" not in captured.out
+
+
+def test_breakdown_prints_na_for_missing_signal_contribution():
+    ranked = pd.DataFrame([{
+        "defense": "ARI", "opponent": "ATL", "home": True, "opp_implied_total": 22.0,
+        "opp_turnovers_pg": 1.0, "opp_sack_rate": 0.05, "opp_qb_status": "starter",
+        "score": 55.0, "missing": ["turnovers"], "notes": "",
+        **{f"c_{s}": (0.5 if s == "implied_total" else 0.0) for s in pipeline.SIGNAL_NAMES},
+    }])
+    text = cli.format_result(
+        {"week": 5, "ranked": ranked, "played": pd.DataFrame(), "byes": []}, breakdown=True,
+    )
+    # Breakdown order follows the signal order: implied_total, qb_status, turnovers, ...
+    row = next(line for line in text.splitlines() if line.startswith("ARI"))
+    after_score = row.split()[row.split().index("55.0") + 1:]
+    assert after_score[0] == "+0.50"  # implied_total, present
+    assert after_score[2] == "n/a"    # turnovers, missing

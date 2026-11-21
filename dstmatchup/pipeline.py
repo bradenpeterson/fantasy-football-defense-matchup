@@ -3,7 +3,6 @@
 No network I/O. Callers (the CLI) load data and pass it in.
 """
 
-import numpy as np
 import pandas as pd
 
 from dstmatchup import dst_points, schedule as sched, signals, scoring
@@ -17,10 +16,6 @@ SIGNAL_NAMES = (
 )
 OPP_SHRUNK = ("turnovers", "sack_rate", "dst_pts_allowed", "opp_ppg")
 OWN_SHRUNK = ("own_defense",)
-
-
-def _shrink_column(z: pd.Series, n: pd.Series, k: float) -> pd.Series:
-    return scoring.shrink(z, n, k)
 
 
 def run(week, teams, cfg: dict, data: dict) -> dict:
@@ -59,9 +54,9 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
     for name in SIGNAL_NAMES:
         z[name] = scoring.zscore(raw[name].astype(float))
     for name in OPP_SHRUNK:
-        z[name] = _shrink_column(z[name], raw["opp_games"].astype(float), k)
+        z[name] = scoring.shrink(z[name], raw["opp_games"].astype(float), k)
     for name in OWN_SHRUNK:
-        z[name] = _shrink_column(z[name], raw["own_games"].astype(float), k)
+        z[name] = scoring.shrink(z[name], raw["own_games"].astype(float), k)
 
     scored = scoring.score_teams(z, cfg["weights"], scale=float(cfg["scoring"]["display_scale"]))
 
