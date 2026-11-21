@@ -136,6 +136,11 @@ def format_result(result: dict, breakdown: bool = False) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw = sys.argv[1:] if argv is None else argv
+    if raw and raw[0] == "backtest":
+        from dstmatchup import backtest
+
+        return backtest.main(raw[1:])
     args = build_parser().parse_args(argv)
     teams = None
     try:

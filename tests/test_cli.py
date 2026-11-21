@@ -155,3 +155,26 @@ def test_played_game_printed_once_when_both_sides_wanted(fake_data, capsys):
     cli.main(["--week", "5", "--teams", "CHI,GB"])
     out = capsys.readouterr().out
     assert out.count("GB @ CHI") == 1
+
+
+def test_backtest_subcommand_dispatches_and_prints_summary(monkeypatch, capsys):
+    from dstmatchup import backtest
+
+    data = make_data()
+    loaded = []
+
+    def fake_season_data(season):
+        loaded.append(season)
+        return {"schedule": data["schedule"], "team_stats": data["team_stats"], "pbp": data["pbp"]}
+
+    monkeypatch.setattr(backtest, "_season_data", fake_season_data)
+    code = cli.main(["backtest", "--seasons", "2025", "2026"])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert loaded == [2025, 2026]
+    assert "Sample size" in out
+    assert "small sample" in out
+    assert "ol_injuries is excluded" in out
+    assert "Suggested weights" in out
+    for name in SIGNALS:
+        assert name in out
