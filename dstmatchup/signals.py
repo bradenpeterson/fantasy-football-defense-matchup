@@ -144,6 +144,10 @@ def rest_signal(opp_rest_days: float) -> float:
     return 0.0
 
 
+def _is_published(report_status) -> bool:
+    return isinstance(report_status, str) and report_status.strip() != ""
+
+
 def _status_weight(report_status) -> float:
     if not isinstance(report_status, str):
         return 0.0
@@ -155,7 +159,10 @@ def ol_missing(injuries: pd.DataFrame, depth: pd.DataFrame, team: str, week: int
 
     Starters are depth rank 1 at LT, LG, C, RG, RT, taken from the team's latest
     depth snapshot. Out 1.0, Doubtful 0.75, Questionable 0.25; backups add 0.
-    Returns NaN when the team has no depth rows (unknown), 0.0 when none is hurt.
+    Only a published report counts: rows with a NULL report_status are practice
+    reports, and a team with none for `week` is unknown (NaN) until game statuses
+    are published. Returns NaN when the team has no depth rows or no published
+    report, 0.0 when a published report hurts no starter.
     """
     team_depth = depth[depth["team"] == team]
     if team_depth.empty:
@@ -166,9 +173,12 @@ def ol_missing(injuries: pd.DataFrame, depth: pd.DataFrame, team: str, week: int
     if starters.empty:
         return np.nan
     if injuries is None or injuries.empty:
-        return 0.0
-    hurt = injuries[(injuries["team"] == team) & (injuries["week"] == week)]
-    hurt = hurt[hurt["gsis_id"].isin(set(starters["gsis_id"].dropna()))]
+        return np.nan
+    team_week = injuries[(injuries["team"] == team) & (injuries["week"] == week)]
+    published = team_week[team_week["report_status"].map(_is_published)]
+    if published.empty:
+        return np.nan
+    hurt = published[published["gsis_id"].isin(set(starters["gsis_id"].dropna()))]
     if hurt.empty:
         return 0.0
     per_player = hurt.assign(_w=hurt["report_status"].map(_status_weight)).groupby("gsis_id")["_w"].max()

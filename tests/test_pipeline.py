@@ -193,3 +193,26 @@ def test_teams_filter_keeps_played_game_for_away_side(cfg):
     played = result["played"]
     assert set(played["team"]) == {"CHI", "GB"}
     assert set(played["opponent"]) == {"CHI", "GB"}
+
+
+def _ol_depth(team):
+    names = [("LT", 1), ("LG", 1), ("C", 1), ("RG", 1), ("RT", 1)]
+    return pd.DataFrame([
+        dict(team=team, gsis_id=f"{team}-{pos}", pos_abb=pos, pos_rank=rank, player_name=f"{team} {pos}")
+        for pos, rank in names
+    ])
+
+
+def test_practice_only_opponent_lists_ol_injuries_as_missing(cfg):
+    # BUF faces DEN. DEN has only practice rows (NaN report_status): its OL is unknown.
+    # LA faces KC. KC has a published report with no OL hurt: it is known, not missing.
+    data = make_data()
+    data["depth"] = pd.concat([_ol_depth("DEN"), _ol_depth("KC")], ignore_index=True)
+    data["injuries"] = pd.DataFrame([
+        dict(team="DEN", week=5, gsis_id="DEN-LT", position="T", report_status=np.nan),
+        dict(team="KC", week=5, gsis_id="KC-WR", position="WR", report_status="Out"),
+    ])
+    ranked = pipeline.run(week=5, teams=None, cfg=cfg, data=data)["ranked"].set_index("defense")
+    assert "ol_injuries" in ranked.loc["BUF", "missing"]
+    assert "ol_injuries" not in ranked.loc["LA", "missing"]
+    assert ranked.loc["LA", "c_ol_injuries"] == pytest.approx(0.0)

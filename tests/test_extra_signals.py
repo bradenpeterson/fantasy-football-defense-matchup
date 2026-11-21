@@ -76,16 +76,35 @@ def test_ol_missing_rank_two_and_non_ol_add_zero():
     assert ol_missing(injuries, BUF_DEPTH, "BUF", 11) == 0.0
 
 
-def test_ol_missing_empty_injuries_is_zero():
+def test_ol_missing_no_injury_rows_is_nan_not_healthy():
     empty = pd.DataFrame(columns=["team", "week", "gsis_id", "position", "report_status"])
-    assert ol_missing(empty, BUF_DEPTH, "BUF", 11) == 0.0
+    assert math.isnan(ol_missing(empty, BUF_DEPTH, "BUF", 11))
 
 
-def test_ol_missing_ignores_other_week_and_team():
+def test_ol_missing_no_rows_for_week_or_team_is_nan():
     injuries = pd.DataFrame([
         _injury("BUF", 10, "G1", "Out"),
         _injury("MIA", 11, "G1", "Out"),
     ])
+    assert math.isnan(ol_missing(injuries, BUF_DEPTH, "BUF", 11))
+
+
+def test_ol_missing_practice_only_rows_is_nan():
+    # nflverse practice reports have a NaN report_status; game statuses come later.
+    injuries = pd.DataFrame([_injury("BUF", 11, "G1", None), _injury("BUF", 11, "G5", float("nan"))])
+    assert math.isnan(ol_missing(injuries, BUF_DEPTH, "BUF", 11))
+
+
+def test_ol_missing_published_out_starter_counts_despite_practice_rows():
+    injuries = pd.DataFrame([
+        _injury("BUF", 11, "G1", "Out"),
+        _injury("BUF", 11, "G5", None),
+    ])
+    assert ol_missing(injuries, BUF_DEPTH, "BUF", 11) == pytest.approx(1.0)
+
+
+def test_ol_missing_published_report_with_no_ol_hurt_is_zero():
+    injuries = pd.DataFrame([_injury("BUF", 11, "WR1", "Out", position="WR")])
     assert ol_missing(injuries, BUF_DEPTH, "BUF", 11) == 0.0
 
 
@@ -238,8 +257,10 @@ def test_frame_rest_uses_opponent_rest_days():
 def test_frame_ol_injuries_is_opponent_missing_weight():
     depth = pd.concat([BUF_DEPTH, _depth("KC", [("KC Tackle", "K1", "LT", 1)])], ignore_index=True)
     injuries = pd.DataFrame([_injury("BUF", 11, "G1", "Out")])
+    # KC has a published report with no OL hurt, so DEN (facing KC) gets 0.0.
+    injuries = pd.concat([injuries, pd.DataFrame([_injury("KC", 11, "K9", "Out", position="WR")])])
     frame = _frame(depth=depth, injuries=injuries, week=11)
-    # MIA faces BUF: BUF starter out -> 1.0. DEN faces KC: no injuries -> 0.0.
+    # MIA faces BUF: BUF starter out -> 1.0. DEN faces KC: published, no OL hurt -> 0.0.
     assert frame.loc["MIA", "ol_injuries"] == pytest.approx(1.0)
     assert frame.loc["DEN", "ol_injuries"] == pytest.approx(0.0)
     assert math.isnan(frame.loc["BUF", "ol_injuries"])  # MIA has no depth rows
