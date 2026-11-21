@@ -39,7 +39,7 @@ How to read the columns:
 - **Opp TO/g**: the opponent's turnovers per game (interceptions and lost fumbles).
 - **Opp Sack%**: the share of the opponent's pass plays that end in a sack.
 - **Opp QB**: the opponent's quarterback status (see "Data caveats").
-- **Score**: 0 to 100, where 50 is an average matchup and higher is better.
+- **Score**: 0 to 100, where 50 is an average matchup and higher is better. With colour on, it is green at 60 or more, yellow from 45 up to 60, and red below 45, and an Opp QB who is a backup or out (a bonus for the defense) shows green while a questionable one shows yellow.
 - **The columns after Score** (shown with `--breakdown`) show how much each signal pushed the score up (`+`) or down (`-`). Use them to see *why* a defense is high or low. They are in z-score units (each is the signal's weighted z); multiply by 25 to get score points. `n/a` means the signal is missing for that defense, so it contributed nothing.
 - **missing: ...** under a defense means some signals had no data for that team. The score was calculated without them (see "How the score works").
 
@@ -70,7 +70,12 @@ Run everything from the project folder, using the virtual environment's Python.
 .venv/bin/python -m dstmatchup --teams BUF,DEN,kc   # only these defenses (any case; LAR is accepted for LA)
 .venv/bin/python -m dstmatchup --season 2025        # a different season (default 2026)
 .venv/bin/python -m dstmatchup --breakdown          # add the per-signal contribution columns
+.venv/bin/python -m dstmatchup --color always       # colour the Score and Opp QB cells (auto, the default, does this only in a terminal)
 ```
+
+- **`--color {auto,always,never}`**: `auto` (the default) colours only when the
+  output is a terminal and the `NO_COLOR` environment variable is not set;
+  `always` forces colour on and `never` forces it off.
 
 - **Default week**: the earliest week that still has an unplayed game. In Week
   11 of 2026, that is week 11.

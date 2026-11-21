@@ -1,10 +1,12 @@
 """Command-line entry point: load data, run the pipeline, print the ranking."""
 
 import argparse
+import os
 import sys
 
 from dstmatchup import pipeline
 from dstmatchup import schedule as sched
+from dstmatchup.colors import paint, qb_color, score_color, use_color
 from dstmatchup.config import load_config
 from dstmatchup.loaders import (
     load_injuries,
@@ -28,7 +30,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--teams", type=str, default=None, help="comma-separated defense codes to show")
     parser.add_argument("--season", type=int, default=2026, help="season year (default: 2026)")
     parser.add_argument("--breakdown", action="store_true", help="show per-signal contribution columns")
+    parser.add_argument(
+        "--color", choices=("auto", "always", "never"), default="auto",
+        help="colour the Score and Opp QB cells: auto (terminal only, off if NO_COLOR is set), always, or never",
+    )
     return parser
+
+
+def _stdout_is_tty() -> bool:
+    return sys.stdout.isatty()
 
 
 def _load_data(season: int) -> dict:
@@ -50,7 +60,7 @@ def _text(value) -> str:
     return "n/a" if value is None or value != value else str(value)
 
 
-def format_result(result: dict, breakdown: bool = False) -> str:
+def format_result(result: dict, breakdown: bool = False, color: bool = False) -> str:
     ranked = result["ranked"]
     contrib_cols = [c for c in ranked.columns if c.startswith("c_")]
     headers = list(BASE_HEADERS)
@@ -70,8 +80,8 @@ def format_result(result: dict, breakdown: bool = False) -> str:
             _num(row.opp_implied_total, "{:.1f}"),
             _num(row.opp_turnovers_pg, "{:.1f}"),
             _num(row.opp_sack_rate, "{:.1%}"),
-            _text(row.opp_qb_status),
-            _num(row.score, "{:.1f}"),
+            paint(_text(row.opp_qb_status), qb_color(row.opp_qb_status) if color else None),
+            paint(_num(row.score, "{:.1f}"), score_color(row.score) if color else None),
         ]
         if breakdown:
             cells += [
@@ -133,5 +143,6 @@ def main(argv: list[str] | None = None) -> int:
     data = _load_data(args.season)
     week = args.week if args.week is not None else sched.current_week(data["schedule"])
     result = pipeline.run(week, teams, cfg, data)
-    print(format_result(result, breakdown=args.breakdown))
+    color = use_color(args.color, _stdout_is_tty(), os.environ)
+    print(format_result(result, breakdown=args.breakdown, color=color))
     return 0
