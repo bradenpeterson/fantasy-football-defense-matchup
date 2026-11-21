@@ -218,3 +218,25 @@ def test_practice_only_opponent_lists_ol_injuries_as_missing(cfg):
     assert "ol_injuries" in ranked.loc["BUF", "missing"]
     assert "ol_injuries" not in ranked.loc["LA", "missing"]
     assert ranked.loc["LA", "c_ol_injuries"] == pytest.approx(0.0)
+
+
+def test_zscores_pool_whole_week_so_played_games_do_not_move_unplayed_teams(cfg):
+    # Same week, but BUF-DEN and KC-LA are final. z is over the whole week, so the
+    # teams still unplayed (MIA, NE, NYJ, PIT) must get exactly the same signals.
+    all_unplayed = make_data()
+    some_played = make_data()
+    sched = some_played["schedule"]
+    final = (sched["week"] == 5) & sched["home_team"].isin(["BUF", "KC"])
+    sched.loc[final, ["home_score", "away_score", "result"]] = [20.0, 17.0, 3.0]
+
+    base = pipeline.run(week=5, teams=None, cfg=cfg, data=all_unplayed)["ranked"].set_index("defense")
+    mixed_result = pipeline.run(week=5, teams=None, cfg=cfg, data=some_played)
+    mixed = mixed_result["ranked"].set_index("defense")
+
+    assert set(mixed.index) == {"MIA", "NE", "NYJ", "PIT"}
+    assert {"BUF", "DEN", "KC", "LA"}.isdisjoint(mixed.index)  # played rows stay out of ranked
+    assert {"BUF", "DEN", "KC", "LA"} <= set(mixed_result["played"]["team"])
+    columns = [c for c in base.columns if c.startswith("c_")] + ["score"]
+    for team in mixed.index:
+        for col in columns:
+            assert mixed.loc[team, col] == pytest.approx(base.loc[team, col]), (team, col)

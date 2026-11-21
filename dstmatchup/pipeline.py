@@ -29,7 +29,7 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
         week = sched.current_week(schedule)
 
     matchups = sched.matchups(schedule, week)
-    unplayed = matchups[~matchups["played"]].reset_index(drop=True)
+    played_mask = matchups["played"].to_numpy(dtype=bool)
     lines = sched.get_lines(schedule, week)
 
     team_stats = data["team_stats"]
@@ -42,8 +42,11 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
     if pbp is not None:
         qb_table = qb_status_table(schedule, pbp, data.get("injuries"), week)
 
+    # z-scores are over every team playing this week (played games included), so a
+    # team's z does not depend on how many of the week's games are already final.
+    # Inputs only use weeks before `week`, so the played rows leak nothing.
     raw = signals.build_signal_frame(
-        unplayed, rates, allowed, lines, cfg,
+        matchups, rates, allowed, lines, cfg,
         qb_table=qb_table,
         injuries=data.get("injuries"),
         depth=data.get("depth"),
@@ -62,21 +65,22 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
 
     scored = scoring.score_teams(z, cfg["weights"], scale=float(cfg["scoring"]["display_scale"]))
 
-    ranked = pd.DataFrame({
+    everyone = pd.DataFrame({
         "defense": raw.index.to_numpy(),
-        "opponent": unplayed["opponent"].to_numpy(),
-        "home": unplayed["home"].to_numpy(),
+        "opponent": matchups["opponent"].to_numpy(),
+        "home": matchups["home"].to_numpy(),
         "opp_implied_total": -raw["implied_total"].to_numpy(dtype=float),
         "opp_turnovers_pg": raw["turnovers"].to_numpy(dtype=float),
         "opp_sack_rate": raw["sack_rate"].to_numpy(dtype=float),
-        "opp_qb_status": _qb_status_strings(qb_table, unplayed["opponent"]),
+        "opp_qb_status": _qb_status_strings(qb_table, matchups["opponent"]),
         "score": scored["score"].to_numpy(dtype=float),
         "missing": list(scored["missing"]),
-        "notes": _notes(unplayed, data.get("forecast")),
+        "notes": _notes(matchups, data.get("forecast")),
     })
     for name in SIGNAL_NAMES:
-        ranked[f"c_{name}"] = scored[name].to_numpy(dtype=float)
+        everyone[f"c_{name}"] = scored[name].to_numpy(dtype=float)
 
+    ranked = everyone[~played_mask]
     ranked = ranked.sort_values("score", ascending=False, na_position="last", kind="stable")
     ranked = ranked.reset_index(drop=True)
 
