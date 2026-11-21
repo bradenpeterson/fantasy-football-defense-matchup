@@ -71,7 +71,9 @@ def make_team_stats():
                     team=team, opponent_team=opp, week=week, season_type="REG",
                     sacks_suffered=2, attempts=30,
                     passing_interceptions=2 if team == "DEN" else 0,
+                    sack_fumbles_lost=0, rushing_fumbles_lost=0, receiving_fumbles_lost=0,
                     def_sacks=2, def_interceptions=0, fumble_recovery_opp=1, def_tds=0,
+                    def_safeties=0, def_fg_blocks=0, def_pat_blocks=0, def_punt_blocks=0,
                 ))
     return pd.DataFrame(rows)
 

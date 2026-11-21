@@ -19,9 +19,10 @@ INJURY_WEIGHTS = {"out": 1.0, "doubtful": 0.75, "questionable": 0.25}
 
 
 def _num(df: pd.DataFrame, name: str) -> pd.Series:
-    if name in df.columns:
-        return pd.to_numeric(df[name], errors="coerce").fillna(0.0)
-    return pd.Series(0.0, index=df.index)
+    """Numeric stat column. A missing column raises; a NaN cell stays NaN."""
+    if name not in df.columns:
+        raise KeyError(f"team_stats is missing required column {name!r}")
+    return pd.to_numeric(df[name], errors="coerce")
 
 
 def _prior_regular_season(df: pd.DataFrame, upto_week: int) -> pd.DataFrame:
@@ -34,7 +35,8 @@ def _prior_regular_season(df: pd.DataFrame, upto_week: int) -> pd.DataFrame:
 def _team_week_stats(stats: pd.DataFrame) -> pd.DataFrame:
     sacks = _num(stats, "sacks_suffered")
     attempts = _num(stats, "attempts")
-    turnovers = sum(_num(stats, c) for c in TURNOVER_COLS)
+    # min_count=1: a game with every component NaN is NaN, not 0 turnovers.
+    turnovers = pd.concat([_num(stats, c) for c in TURNOVER_COLS], axis=1).sum(axis=1, min_count=1)
     return pd.DataFrame({
         "team": stats["team"].to_numpy(),
         "week": stats["week"].to_numpy(),
@@ -42,9 +44,9 @@ def _team_week_stats(stats: pd.DataFrame) -> pd.DataFrame:
         "sack_num": sacks.to_numpy(dtype=float),
         "sack_den": (attempts + sacks).to_numpy(dtype=float),
         "def_sacks": _num(stats, "def_sacks").to_numpy(dtype=float),
-        "def_takeaways": (
-            _num(stats, "def_interceptions") + _num(stats, "fumble_recovery_opp")
-        ).to_numpy(dtype=float),
+        "def_takeaways": pd.concat(
+            [_num(stats, "def_interceptions"), _num(stats, "fumble_recovery_opp")], axis=1,
+        ).sum(axis=1, min_count=1).to_numpy(dtype=float),
     })
 
 

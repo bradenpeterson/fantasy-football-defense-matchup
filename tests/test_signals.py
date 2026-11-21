@@ -177,3 +177,45 @@ def test_team_missing_from_rates_gets_nan_signals(signal_inputs):
     assert math.isnan(frame.loc["SEA", "turnovers"])
     assert math.isnan(frame.loc["SEA", "dst_pts_allowed"])
     assert math.isnan(frame.loc["SEA", "own_defense"])
+
+
+def test_missing_required_stat_column_raises_naming_it():
+    rows = [_stat("BUF", 1)]
+    stats = _stats(rows).drop(columns=["def_sacks"])
+    with pytest.raises(KeyError, match="def_sacks"):
+        team_rates(stats, upto_week=2)
+
+
+def test_missing_turnover_column_raises_naming_it():
+    stats = _stats([_stat("BUF", 1)]).drop(columns=["receiving_fumbles_lost"])
+    with pytest.raises(KeyError, match="receiving_fumbles_lost"):
+        team_rates(stats, upto_week=2)
+
+
+def test_nan_attempts_week_is_excluded_from_sack_rate_not_zero():
+    rows = [
+        _stat("BUF", 1, attempts=np.nan, sacks_suffered=3),
+        _stat("BUF", 2, attempts=10, sacks_suffered=1),
+    ]
+    rates = team_rates(_stats(rows), upto_week=3)
+    # Only week 2 counts: 1 sack in 11 dropbacks (sacks + attempts).
+    assert math.isclose(rates.loc["BUF", "sack_rate_allowed_season"], 1 / 11)
+
+
+def test_nan_turnover_week_is_excluded_from_mean_not_zero():
+    rows = [
+        _stat("BUF", 1, passing_interceptions=np.nan, sack_fumbles_lost=np.nan,
+              rushing_fumbles_lost=np.nan, receiving_fumbles_lost=np.nan),
+        _stat("BUF", 2, passing_interceptions=2),
+    ]
+    rates = team_rates(_stats(rows), upto_week=3)
+    assert math.isclose(rates.loc["BUF", "turnovers_pg_season"], 2.0)
+
+
+def test_nan_defense_week_is_excluded_from_per_game_mean():
+    rows = [
+        _stat("BUF", 1, def_sacks=np.nan),
+        _stat("BUF", 2, def_sacks=4),
+    ]
+    rates = team_rates(_stats(rows), upto_week=3)
+    assert math.isclose(rates.loc["BUF", "def_sacks_pg_season"], 4.0)

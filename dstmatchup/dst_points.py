@@ -1,8 +1,9 @@
 """Yahoo D/ST points proxy built from team stats and schedule scores.
 
 No network I/O: callers pass in frames (see dstmatchup.loaders).
-Missing stat columns are treated as 0. Only games with scores in the
-regular season contribute.
+A missing stat column raises KeyError; a NaN stat stays NaN (that game's
+points are NaN and drop out of averages). Only regular-season games with
+scores contribute.
 """
 
 import pandas as pd
@@ -20,9 +21,10 @@ def points_allowed_score(points: int, tiers: list) -> int:
 
 
 def _col(df: pd.DataFrame, name: str) -> pd.Series:
-    if name in df.columns:
-        return pd.to_numeric(df[name], errors="coerce").fillna(0)
-    return pd.Series(0, index=df.index, dtype=float)
+    """Numeric stat column. A missing column raises; a NaN cell stays NaN."""
+    if name not in df.columns:
+        raise KeyError(f"team_stats is missing required D/ST column {name!r}")
+    return pd.to_numeric(df[name], errors="coerce")
 
 
 def _regular_season(df: pd.DataFrame, col: str) -> pd.DataFrame:
@@ -104,7 +106,7 @@ def dst_points_allowed_to(df: pd.DataFrame) -> pd.DataFrame:
     Input is the output of dst_points_by_game. Offenses with no games are absent.
     """
     grouped = df.groupby("opponent").agg(
-        games=("dst_points", "size"),
+        games=("dst_points", "count"),
         dst_pts_allowed_per_game=("dst_points", "mean"),
     )
     grouped = grouped.reset_index().rename(columns={"opponent": "offense"})

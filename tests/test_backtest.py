@@ -129,7 +129,9 @@ def test_missing_signal_is_nan_not_zero_and_excluded_from_correlation(cfg):
     sched.loc[final, ["home_score", "away_score", "result"]] = [24.0, 21.0, 3.0]
     stats = pd.DataFrame([
         dict(team=team, opponent_team=opp, week=5, season_type="REG", sacks_suffered=2, attempts=30,
-             passing_interceptions=0, def_sacks=2, def_interceptions=0, fumble_recovery_opp=1, def_tds=0)
+             passing_interceptions=0, sack_fumbles_lost=0, rushing_fumbles_lost=0, receiving_fumbles_lost=0,
+             def_sacks=2, def_interceptions=0, fumble_recovery_opp=1, def_tds=0, def_safeties=0,
+             def_fg_blocks=0, def_pat_blocks=0, def_punt_blocks=0)
         for team, opp in (("KC", "LA"), ("LA", "KC"))
     ])
     data["team_stats"] = pd.concat([data["team_stats"], stats], ignore_index=True)

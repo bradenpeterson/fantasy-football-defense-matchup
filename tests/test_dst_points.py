@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import math
+
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -69,16 +72,39 @@ def test_dst_points_by_game(yahoo):
     assert out.iloc[0]["dst_points"] == 9
 
 
-def test_dst_points_by_game_missing_columns_count_as_zero(yahoo):
-    # Only sacks present; every other stat column is absent and should be 0.
-    team_stats = pd.DataFrame(
-        [{"team": "BUF", "week": 1, "opponent_team": "KC", "season_type": "REG", "def_sacks": 3}]
-    )
+def test_dst_points_by_game_missing_required_column_raises(yahoo):
+    # Every D/ST stat column is required; drop one and the error must name it.
+    team_stats = pd.DataFrame([{
+        "team": "BUF", "week": 1, "opponent_team": "KC", "season_type": "REG",
+        "def_sacks": 3, "def_interceptions": 0, "fumble_recovery_opp": 0, "def_safeties": 0,
+        "def_tds": 0, "def_pat_blocks": 0, "def_punt_blocks": 0,
+    }])
     schedule = pd.DataFrame(
         [{"away_team": "KC", "home_team": "BUF", "away_score": 13, "home_score": 20, "week": 1}]
     )
-    out = dst_points_by_game(team_stats, schedule, yahoo)
-    assert out.iloc[0]["dst_points"] == 3 + 4
+    with pytest.raises(KeyError, match="def_fg_blocks"):
+        dst_points_by_game(team_stats, schedule, yahoo)
+
+
+def test_dst_points_nan_game_is_excluded_from_allowed_mean(yahoo):
+    base = {"team": "BUF", "opponent_team": "KC", "season_type": "REG", "def_safeties": 0,
+            "def_tds": 0, "def_fg_blocks": 0, "def_pat_blocks": 0, "def_punt_blocks": 0,
+            "def_interceptions": 0, "fumble_recovery_opp": 0}
+    team_stats = pd.DataFrame([
+        {**base, "week": 1, "def_sacks": np.nan},  # missing stat, not zero sacks
+        {**base, "week": 2, "def_sacks": 3},
+    ])
+    schedule = pd.DataFrame([
+        {"away_team": "KC", "home_team": "BUF", "away_score": 13, "home_score": 20, "week": w, "game_type": "REG"}
+        for w in (1, 2)
+    ])
+    by_game = dst_points_by_game(team_stats, schedule, yahoo).set_index("week")
+    assert math.isnan(by_game.loc[1, "dst_points"])
+    assert by_game.loc[2, "dst_points"] == 3 + 4  # 3 sacks + 13 points allowed (tier 4)
+    allowed = dst_points_allowed_to(dst_points_by_game(team_stats, schedule, yahoo))
+    row = allowed.set_index("offense").loc["KC"]
+    assert row["dst_pts_allowed_per_game"] == pytest.approx(7.0)
+    assert row["games"] == 1
 
 
 def test_dst_points_by_game_skips_unscored_games(yahoo):
