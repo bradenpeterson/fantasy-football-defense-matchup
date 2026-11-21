@@ -272,3 +272,39 @@ def test_sack_rate_orientation_offense_that_gives_up_sacks_helps_defense(cfg):
     assert rows["c_sack_rate"].idxmax() == "BUF"
     assert rows.loc["BUF", "c_sack_rate"] > 0
     assert rows.loc["BUF", "opp_sack_rate"] == pytest.approx(0.25)
+
+
+def test_rank_is_one_to_n_in_descending_score_order(cfg):
+    ranked = pipeline.run(week=5, teams=None, cfg=cfg, data=make_data())["ranked"]
+    assert ranked["rank"].tolist() == list(range(1, len(ranked) + 1))
+    assert ranked["score"].is_monotonic_decreasing
+
+
+def test_nan_score_rows_have_no_rank(cfg):
+    data = make_data()
+    extra = _game(5, "ARI", "ATL", total=46.0, spread=0.0)
+    data["schedule"] = pd.concat([data["schedule"], pd.DataFrame([extra])], ignore_index=True)
+    ranked = pipeline.run(week=5, teams=None, cfg=_only(cfg, "turnovers"), data=data)["ranked"]
+    unscored = ranked[ranked["score"].isna()]
+    assert set(unscored["defense"]) == {"ARI", "ATL"}
+    assert unscored["rank"].isna().all()
+    assert ranked["rank"].dropna().tolist() == list(range(1, 9))
+    assert str(ranked["rank"].dtype) == "Int64"
+
+
+def test_teams_filter_keeps_league_wide_ranks(cfg):
+    full = pipeline.run(week=5, teams=None, cfg=cfg, data=make_data())["ranked"].set_index("defense")
+    kept = pipeline.run(week=5, teams=["BUF", "KC"], cfg=cfg, data=make_data())["ranked"].set_index("defense")
+    assert set(kept.index) == {"BUF", "KC"}
+    assert kept.loc["BUF", "rank"] == full.loc["BUF", "rank"] == 1
+    assert kept.loc["KC", "rank"] == full.loc["KC", "rank"]
+    assert kept.loc["KC", "rank"] != 2
+
+
+def test_why_column_names_the_turnover_driver_by_sign(cfg):
+    # Only turnovers weighted: BUF c_turnovers 1.322876 = 33.07 points (up), others -0.188982 = -4.72 (down).
+    rows = pipeline.run(week=5, teams=None, cfg=_only(cfg, "turnovers"), data=make_data())["ranked"]
+    rows = rows.set_index("defense")
+    assert rows.loc["BUF", "why"] == "▲ turnovers"
+    assert rows.loc["MIA", "c_turnovers"] * 25 == pytest.approx(-4.72, abs=0.01)
+    assert rows.loc["MIA", "why"] == "▼ turnovers"

@@ -4,6 +4,8 @@ import argparse
 import os
 import sys
 
+import pandas as pd
+
 from dstmatchup import pipeline
 from dstmatchup import schedule as sched
 from dstmatchup.colors import paint, qb_color, score_color, use_color
@@ -17,7 +19,7 @@ from dstmatchup.loaders import (
 from dstmatchup.teams import normalize_team
 from tabulate import tabulate
 
-BASE_HEADERS = ["Defense", "Opp", "H/A", "Opp Implied", "Opp TO/g", "Opp Sack%", "Opp QB", "Score"]
+BASE_HEADERS = ["#", "Defense", "Opp", "H/A", "Opp Implied", "Opp TO/g", "Opp Sack%", "Opp QB", "Score", "Why"]
 
 
 def _parse_teams(text: str) -> list[str]:
@@ -56,6 +58,10 @@ def _num(value, pattern: str) -> str:
     return pattern.format(value)
 
 
+def _rank(value) -> str:
+    return "-" if pd.isna(value) else str(int(value))
+
+
 def _text(value) -> str:
     return "n/a" if value is None or value != value else str(value)
 
@@ -74,6 +80,7 @@ def format_result(result: dict, breakdown: bool = False, color: bool = False) ->
             under.append(f"  missing: {', '.join(row.missing)}")
         defense = "\n".join([row.defense] + under)
         cells = [
+            _rank(row.rank),
             defense,
             row.opponent,
             "H" if row.home else "A",
@@ -82,6 +89,7 @@ def format_result(result: dict, breakdown: bool = False, color: bool = False) ->
             _num(row.opp_sack_rate, "{:.1%}"),
             paint(_text(row.opp_qb_status), qb_color(row.opp_qb_status) if color else None),
             paint(_num(row.score, "{:.1f}"), score_color(row.score) if color else None),
+            row.why,
         ]
         if breakdown:
             cells += [

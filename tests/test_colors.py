@@ -77,9 +77,9 @@ def _ranked(rows):
     return pd.DataFrame([{
         "defense": d, "opponent": "ZZZ", "home": True, "opp_implied_total": 20.0,
         "opp_turnovers_pg": 1.0, "opp_sack_rate": 0.05, "opp_qb_status": qb,
-        "score": score, "missing": [], "notes": "",
+        "score": score, "missing": [], "notes": "", "rank": i + 1, "why": "-",
         **{f"c_{s}": 0.0 for s in cli.pipeline.SIGNAL_NAMES},
-    } for d, score, qb in rows])
+    } for i, (d, score, qb) in enumerate(rows)])
 
 
 def test_format_result_colours_only_score_and_opp_qb_cells():
@@ -88,7 +88,7 @@ def test_format_result_colours_only_score_and_opp_qb_cells():
     colored = cli.format_result(result, color=True)
     plain = cli.format_result(result, color=False)
 
-    rows = {line.split()[0]: line for line in colored.splitlines() if line.strip()}
+    rows = {line.split()[1]: line for line in colored.splitlines() if len(line.split()) > 1}
     assert f"{GREEN}70.0{RESET}" in rows["ARI"] and f"{GREEN}backup{RESET}" in rows["ARI"]
     assert f"{YELLOW}50.0{RESET}" in rows["KC"] and f"{YELLOW}questionable{RESET}" in rows["KC"]
     assert f"{RED}20.0{RESET}" in rows["LOW"]
@@ -104,9 +104,9 @@ def test_format_result_leaves_na_score_uncoloured():
     text = cli.format_result(
         {"week": 5, "ranked": ranked, "played": pd.DataFrame(), "byes": []}, color=True,
     )
-    row = next(line for line in text.splitlines() if line.startswith("ARI"))
+    row = next(line for line in text.splitlines() if line.split()[1:2] == ["ARI"])
     assert ANSI.findall(row) == []
-    assert row.rstrip().endswith("n/a")
+    assert row.split()[-2:] == ["n/a", "-"]
 
 
 @pytest.fixture

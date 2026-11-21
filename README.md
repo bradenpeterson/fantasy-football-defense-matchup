@@ -16,14 +16,17 @@ recent-starter QB rule (`qb_recent_games = 2`), which is Week 11 of the 2026
 season. Your numbers will change as the season moves on.
 
 ```
-Defense    Opp    H/A    Opp Implied    Opp TO/g    Opp Sack%    Opp QB    Score    implied_total    qb_status    turnovers    sack_rate    dst_pts_allowed    opp_ppg    own_defense    home_away    rest
----------  -----  -----  -------------  ----------  -----------  --------  -------  ---------------  -----------  -----------  -----------  -----------------  ---------  -------------  -----------  ------
-KC         ARI    H      12.0           1.0         8.5%         backup    77.3     +0.57            +0.39        -0.04        +0.06        +0.06              +0.04      -0.02          +0.03        +0.01
-BUF        MIA    H      14.0           1.0         10.2%        backup    77.3     +0.46            +0.39        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01
-PIT        PHI    A      17.0           1.0         9.7%         backup    70.4     +0.30            +0.39        -0.04        +0.11        +0.05              +0.05      +0.04          -0.03        -0.04
-DEN        LV     H      15.0           1.2         5.5%         backup    69.0     +0.41            +0.39        +0.01        -0.07        -0.03              -0.00      +0.02          +0.03        +0.01
+Week 11 DST matchup ranking
+
+#    Defense    Opp    H/A    Opp Implied    Opp TO/g    Opp Sack%    Opp QB    Score    Why                                implied_total    qb_status    turnovers    sack_rate    dst_pts_allowed    opp_ppg    own_defense    home_away    rest
+---  ---------  -----  -----  -------------  ----------  -----------  --------  -------  ---------------------------------  ---------------  -----------  -----------  -----------  -----------------  ---------  -------------  -----------  ------
+1    KC         ARI    H      12.0           1.0         8.5%         backup    77.3     ▲ implied pts  ▲ QB                +0.57            +0.39        -0.04        +0.06        +0.06              +0.04      -0.02          +0.03        +0.01
+2    BUF        MIA    H      14.0           1.0         10.2%        backup    77.3     ▲ implied pts  ▲ QB                +0.46            +0.39        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01
+3    PIT        PHI    A      17.0           1.0         9.7%         backup    70.4     ▲ QB  ▲ implied pts                +0.30            +0.39        -0.04        +0.11        +0.05              +0.05      +0.04          -0.03        -0.04
+4    DEN        LV     H      15.0           1.2         5.5%         backup    69.0     ▲ implied pts  ▲ QB                +0.41            +0.39        +0.01        -0.07        -0.03              -0.00      +0.02          +0.03        +0.01
+5    SF         MIN    H      21.8           1.1         8.9%         backup    64.3     ▲ QB  ▲ sacks                      +0.05            +0.39        -0.01        +0.08        +0.02              +0.03      -0.02          +0.03        +0.01
+6    NYJ        LAC    A      22.2           1.8         11.6%        starter   60.5     ▲ sacks  ▲ turnovers               +0.02            -0.09        +0.16        +0.19        +0.14              +0.05      -0.03          -0.03        +0.01
 ...
-TEN        DAL    A      31.5           0.8         4.6%         starter   27.9     -0.48            -0.09        -0.09        -0.11        -0.07              -0.05      +0.02          -0.03        +0.01
 
 Already played this week:
   IND @ HOU
@@ -34,13 +37,15 @@ On bye:
 
 How to read the columns:
 
+- **#**: the defense's rank among all the ranked games this week (1 is the best matchup). The rank is league-wide, so `--teams` keeps each defense's real rank (say 7 of 24) rather than renumbering from 1. A defense with no score has no rank and shows `-`.
+- **Why**: the two biggest drivers of the defense's score, shown as ▲ (helps the defense) or ▼ (hurts it). Only drivers worth at least 1 point are listed; `-` means none reached that.
 - **Defense / Opp / H/A**: the defense you are ranking, the team it plays, and whether that defense is at home.
 - **Opp Implied**: the points the opponent is expected to score, from the betting total and spread. Lower is better for the defense.
 - **Opp TO/g**: the opponent's turnovers per game (interceptions and lost fumbles).
 - **Opp Sack%**: the share of the opponent's pass plays that end in a sack.
 - **Opp QB**: the opponent's quarterback status (see "Data caveats").
 - **Score**: 0 to 100, where 50 is an average matchup and higher is better. With colour on, it is green at 60 or more, yellow from 45 up to 60, and red below 45, and an Opp QB who is a backup or out (a bonus for the defense) shows green while a questionable one shows yellow.
-- **The columns after Score** (shown with `--breakdown`) show how much each signal pushed the score up (`+`) or down (`-`). Use them to see *why* a defense is high or low. They are in z-score units (each is the signal's weighted z); multiply by 25 to get score points. `n/a` means the signal is missing for that defense, so it contributed nothing.
+- **The columns after Why** (shown with `--breakdown`) show how much each signal pushed the score up (`+`) or down (`-`). Use them to see *why* a defense is high or low. They are in z-score units (each is the signal's weighted z); multiply by 25 to get score points. `n/a` means the signal is missing for that defense, so it contributed nothing.
 - **missing: ...** under a defense means some signals had no data for that team. The score was calculated without them (see "How the score works").
 
 ## Setup
@@ -72,6 +77,8 @@ Run everything from the project folder, using the virtual environment's Python.
 .venv/bin/python -m dstmatchup --breakdown          # add the per-signal contribution columns
 .venv/bin/python -m dstmatchup --color always       # colour the Score and Opp QB cells (auto, the default, does this only in a terminal)
 ```
+
+- **`#` and `Why`**: always shown in the ranked table. They are explained under "What the output looks like".
 
 - **`--color {auto,always,never}`**: `auto` (the default) colours only when the
   output is a terminal and the `NO_COLOR` environment variable is not set;

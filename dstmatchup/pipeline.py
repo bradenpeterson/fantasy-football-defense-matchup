@@ -3,9 +3,10 @@
 No network I/O. Callers (the CLI) load data and pass it in.
 """
 
+import numpy as np
 import pandas as pd
 
-from dstmatchup import dst_points, schedule as sched, signals, scoring
+from dstmatchup import dst_points, explain, schedule as sched, signals, scoring
 from dstmatchup.teams import normalize_team
 from dstmatchup.qb import qb_status_table
 
@@ -72,6 +73,16 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
     ranked = everyone[~played_mask]
     ranked = ranked.sort_values("score", ascending=False, na_position="last", kind="stable")
     ranked = ranked.reset_index(drop=True)
+    # League-wide rank over every ranked game, before any --teams filter. Teams with no
+    # score get no rank (nullable Int64, so the column stays integer).
+    position = pd.Series(np.arange(1, len(ranked) + 1), index=ranked.index)
+    ranked["rank"] = position.where(ranked["score"].notna()).astype("Int64")
+    contrib_cols = [f"c_{name}" for name in SIGNAL_NAMES]
+    display_scale = float(cfg["scoring"]["display_scale"])
+    ranked["why"] = [
+        explain.why_text(dict(zip(SIGNAL_NAMES, row)), display_scale)
+        for row in ranked[contrib_cols].itertuples(index=False, name=None)
+    ]
 
     played = matchups[matchups["played"]].reset_index(drop=True)
     byes = sched.bye_teams(schedule, week)

@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 import pytest
 
@@ -51,7 +53,7 @@ def test_output_table_has_header_and_rows(fake_data, capsys):
     code = cli.main(["--week", "5"])
     out = capsys.readouterr().out
     assert code == 0
-    header = next(line for line in out.splitlines() if "Defense" in line)
+    header = next(line for line in out.splitlines() if "Opp Implied" in line)
     for column in ("Defense", "Opp", "H/A", "Opp Implied", "Opp TO/g", "Opp Sack%", "Opp QB", "Score"):
         assert column in header
     assert "BUF" in out and "DEN" in out
@@ -61,14 +63,14 @@ def test_breakdown_adds_each_signal_contribution(fake_data, capsys):
     code = cli.main(["--week", "5", "--breakdown"])
     out = capsys.readouterr().out
     assert code == 0
-    header = next(line for line in out.splitlines() if line.startswith("Defense"))
+    header = next(line for line in out.splitlines() if "Opp Implied" in line)
     for name in SIGNALS:
         assert name in header
 
 
 def test_plain_output_has_no_contribution_columns(fake_data, capsys):
     cli.main(["--week", "5"])
-    header = next(line for line in capsys.readouterr().out.splitlines() if line.startswith("Defense"))
+    header = next(line for line in capsys.readouterr().out.splitlines() if "Opp Implied" in line)
     assert "turnovers" not in header and "implied_total" not in header
 
 
@@ -93,12 +95,12 @@ def test_nan_score_prints_na():
     ranked = pd.DataFrame([{
         "defense": "ARI", "opponent": "ATL", "home": True, "opp_implied_total": float("nan"),
         "opp_turnovers_pg": float("nan"), "opp_sack_rate": float("nan"), "opp_qb_status": None,
-        "score": float("nan"), "missing": ["turnovers"],
+        "score": float("nan"), "missing": ["turnovers"], "rank": pd.NA, "why": "-",
         **{f"c_{s}": 0.0 for s in SIGNALS},
     }])
     text = cli.format_result({"week": 5, "ranked": ranked, "played": pd.DataFrame(), "byes": []})
-    row = next(line for line in text.splitlines() if line.startswith("ARI"))
-    assert row.rstrip().endswith("n/a")
+    row = next(line for line in text.splitlines() if line.split()[1:2] == ["ARI"])
+    assert row.split()[-2:] == ["n/a", "-"]
 
 
 def test_python_m_entry_point_runs_help():
@@ -184,14 +186,57 @@ def test_breakdown_prints_na_for_missing_signal_contribution():
     ranked = pd.DataFrame([{
         "defense": "ARI", "opponent": "ATL", "home": True, "opp_implied_total": 22.0,
         "opp_turnovers_pg": 1.0, "opp_sack_rate": 0.05, "opp_qb_status": "starter",
-        "score": 55.0, "missing": ["turnovers"],
+        "score": 55.0, "missing": ["turnovers"], "rank": 3, "why": "▲ implied pts",
         **{f"c_{s}": (0.5 if s == "implied_total" else 0.0) for s in pipeline.SIGNAL_NAMES},
     }])
     text = cli.format_result(
         {"week": 5, "ranked": ranked, "played": pd.DataFrame(), "byes": []}, breakdown=True,
     )
     # Breakdown order follows the signal order: implied_total, qb_status, turnovers, ...
-    row = next(line for line in text.splitlines() if line.startswith("ARI"))
+    row = next(line for line in text.splitlines() if line.split()[1:2] == ["ARI"])
     after_score = row.split()[row.split().index("55.0") + 1:]
-    assert after_score[0] == "+0.50"  # implied_total, present
-    assert after_score[2] == "n/a"    # turnovers, missing
+    assert after_score[:3] == ["▲", "implied", "pts"]  # Why cell sits between Score and the breakdown
+    assert after_score[3] == "+0.50"  # implied_total, present
+    assert after_score[5] == "n/a"    # turnovers, missing
+
+
+def _table_header(out: str) -> list[str]:
+    line = next(line for line in out.splitlines() if "Opp Implied" in line)
+    return re.split(r"\s{2,}", line.strip())
+
+
+def test_header_has_rank_first_and_why_after_score(fake_data, capsys):
+    assert cli.main(["--week", "5"]) == 0
+    header = _table_header(capsys.readouterr().out)
+    assert header == ["#", "Defense", "Opp", "H/A", "Opp Implied", "Opp TO/g", "Opp Sack%", "Opp QB", "Score", "Why"]
+
+
+def _rank_of(out: str, defense: str) -> str:
+    line = next(line for line in out.splitlines() if line.split()[1:2] == [defense])
+    return line.split()[0]
+
+
+def test_first_data_row_is_rank_one(fake_data, capsys):
+    cli.main(["--week", "5"])
+    out = capsys.readouterr().out
+    assert _rank_of(out, "BUF") == "1"
+
+
+def test_teams_filter_shows_league_wide_ranks(fake_data, capsys):
+    cli.main(["--week", "5"])
+    full = capsys.readouterr().out
+    cli.main(["--week", "5", "--teams", "KC,BUF"])
+    filtered = capsys.readouterr().out
+    assert _rank_of(filtered, "BUF") == "1"
+    assert _rank_of(filtered, "KC") == _rank_of(full, "KC")
+    assert _rank_of(filtered, "KC") != "2"
+
+
+def test_rank_and_why_cells_are_not_coloured(fake_data, capsys):
+    cli.main(["--week", "5", "--color", "always"])
+    out = capsys.readouterr().out
+    row = next(line for line in out.splitlines() if line.split()[1:2] == ["BUF"])
+    assert "\x1b" not in row.split()[0]  # rank cell is plain
+    tail = row.rsplit("\x1b[0m", 1)[1]  # everything after the last coloured cell (Score)
+    assert "\x1b" not in tail
+    assert tail.strip() == "\u25b2 implied pts  \u25b2 QB"  # BUF's Why, uncoloured
