@@ -8,9 +8,13 @@ Limitations (by design):
   QB status uses only the schedule's named starter versus the prior-weeks
   dropback leader (no injury report).
 - The weather signal is roof-only; no forecast is fetched for past games.
-- qb_status uses the schedule's actual starter for the week (hindsight): for past
-  games the schedule names who really started, so its correlation and suggested
-  weight are optimistic.
+- qb_status uses the schedule-named kickoff starter for the week. That is known at
+  kickoff but not at earlier lineup deadlines. In 2025 data the named QB matches the
+  actual top passer in about 96% of team-games (mismatches are starters hurt or pulled
+  during the game), so its correlation and suggested weight are mildly optimistic.
+- implied_total uses nflverse's total_line and spread_line, which are closing lines
+  (the last market before kickoff). A mid-week decision would not have them, so the
+  implied_total correlation, the strongest signal here, is flattered.
 - Samples are small (a few hundred defense-weeks at most), so correlations are
   noisy and the suggested weights are not evidence of predictive power.
 """
@@ -192,13 +196,15 @@ def format_report(df: pd.DataFrame, cfg: dict, seasons: list[int]) -> str:
         f"Sample size: {len(df)} defense-weeks ({scored} with a score)",
         "Caveat: correlations are on a small sample and are noisy. ol_injuries is excluded by design "
         "(no historical depth or injury snapshots), so its correlation is n/a.",
-        "qb_status uses the schedule's actual starter for the week (hindsight), so its correlation and "
-        "suggested weight are optimistic.",
+        "qb_status uses the schedule-named kickoff starter (known at kickoff, not at earlier lineup "
+        "deadlines); mildly optimistic, so its correlation and suggested weight may be too high.",
+        "implied_total uses closing lines (nflverse total_line, spread_line), which flatter it versus "
+        "mid-week decisions.",
         "",
         "Spearman correlation with actual D/ST points:",
     ]
     for name in list(SIGNAL_NAMES) + ["score"]:
-        label = f"{name} (hindsight)" if name == "qb_status" else name
+        label = f"{name} (kickoff starter)" if name == "qb_status" else name
         lines.append(f"  {label:<26} {_fmt(corr.get(name), '{:+.3f}')}")
     lines.append("")
     lines.append("Suggested weights (from positive correlations, sum 100) vs current config.toml weights.")
@@ -207,7 +213,7 @@ def format_report(df: pd.DataFrame, cfg: dict, seasons: list[int]) -> str:
     lines.append(tabulate(rows, headers=["signal", "current", "suggested"], tablefmt="simple", disable_numparse=True))
     config_sum = sum(current.values())
     lines.append(
-        f"Note: ol_injuries is forced to 0 in the backtest, so its suggested weight is 0. The suggested "
+        f"Note: ol_injuries is excluded (NaN) in the backtest, not forced to 0, so its suggested weight is 0. The suggested "
         f"weights sum to 100 while config.toml's sum to {config_sum:.0f}."
     )
     return "\n".join(lines)

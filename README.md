@@ -11,19 +11,24 @@ any accounts or API keys.
 
 ## What the output looks like
 
-Below is a trimmed excerpt from `--breakdown` on 2026-11-20, which is Week 11
-of the 2026 season. Your numbers will change as the season moves on.
+Below is a trimmed excerpt from `--breakdown` run on 2026-11-20 (commit
+799b933), which is Week 11 of the 2026 season. Your numbers will change as the
+season moves on.
 
 ```
-Defense             Opp    H/A    Opp Implied    Opp TO/g    Opp Sack%    Opp QB    Score    implied_total    qb_status    turnovers    sack_rate    dst_pts_allowed    opp_ppg    own_defense    home_away    weather    rest    ol_injuries
-------------------  -----  -----  -------------  ----------  -----------  --------  -------  ---------------  -----------  -----------  -----------  -----------------  ---------  -------------  -----------  ---------  ------  -------------
-KC                  ARI    H      12.0           1.0         8.5%         backup    75.3     +0.55            +0.31        -0.04        +0.06        +0.06              +0.04      -0.02          +0.03        +0.01      +0.02   +0.00
-BUF                 MIA    H      14.0           1.0         10.2%        backup    75.2     +0.45            +0.31        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01      +0.02   +0.00
-NYJ                 LAC    A      22.2           1.8         11.6%        starter   59.1     +0.02            -0.10        +0.18        +0.18        +0.14              +0.04      -0.02          -0.03        -0.06      +0.02   +0.00
-DAL                 TEN    H      23.0           1.4         3.8%         starter   46.8     -0.02            -0.11        +0.07        -0.14        +0.02              +0.00      +0.00          +0.03        +0.00      +0.02   +0.00
-  missing: weather
+Defense                          Opp    H/A    Opp Implied    Opp TO/g    Opp Sack%    Opp QB    Score    implied_total    qb_status    turnovers    sack_rate    dst_pts_allowed    opp_ppg    own_defense    home_away    weather    rest    ol_injuries
+-------------------------------  -----  -----  -------------  ----------  -----------  --------  -------  ---------------  -----------  -----------  -----------  -----------------  ---------  -------------  -----------  ---------  ------  -------------
+KC                               ARI    H      12.0           1.0         8.5%         backup    75.9     +0.55            +0.33        -0.04        +0.06        +0.05              +0.04      -0.02          +0.03        +0.01      +0.01   n/a
+  missing: ol_injuries
+BUF                              MIA    H      14.0           1.0         10.2%        backup    75.9     +0.45            +0.33        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01      +0.01   n/a
+  missing: ol_injuries
+PIT                              PHI    A      17.0           1.0         9.7%         backup    69.1     +0.29            +0.33        -0.04        +0.11        +0.05              +0.05      +0.04          -0.03        +0.01      -0.04   n/a
+  missing: ol_injuries
+DEN                              LV     H      15.0           1.2         5.5%         backup    67.8     +0.40            +0.33        +0.01        -0.07        -0.03              -0.00      +0.02          +0.03        +0.01      +0.01   n/a
+  missing: ol_injuries
 ...
-TEN                 DAL    A      31.5           0.8         4.6%         starter   27.8     -0.47            -0.11        -0.10        -0.11        -0.07              -0.05      +0.02          -0.03        +0.00      +0.02   +0.00
+TEN                              DAL    A      31.5           0.8         4.6%         starter   27.6     -0.48            -0.10        -0.09        -0.11        -0.07              -0.05      +0.02          -0.03        n/a        +0.01   n/a
+  missing: weather, ol_injuries
 
 Already played this week:
   IND @ HOU
@@ -40,7 +45,7 @@ How to read the columns:
 - **Opp Sack%**: the share of the opponent's pass plays that end in a sack.
 - **Opp QB**: the opponent's quarterback status (see "Data caveats").
 - **Score**: 0 to 100, where 50 is an average matchup and higher is better.
-- **The columns after Score** (shown with `--breakdown`) show how much each signal pushed the score up (`+`) or down (`-`). Use them to see *why* a defense is high or low.
+- **The columns after Score** (shown with `--breakdown`) show how much each signal pushed the score up (`+`) or down (`-`). Use them to see *why* a defense is high or low. They are in z-score units (each is the signal's weighted z); multiply by 25 to get score points. `n/a` means the signal is missing for that defense, so it contributed nothing.
 - **missing: ...** under a defense means some signals had no data for that team. The score was calculated without them (see "How the score works").
 
 ## Setup
@@ -97,18 +102,22 @@ It prints:
 - A sample size (on 2026-11-20: 654 defense-weeks across 2025 and 2026).
 - A correlation for each signal and for the overall score. A correlation near
   +1 means "higher signal, more points"; near 0 means no clear link. On
-  2026-11-20 the overall score had a correlation of +0.321, the implied total
-  +0.324, and the sack rate +0.210.
+  2026-11-20 (commit 799b933) the overall score had a correlation of +0.321, the
+  implied total +0.324, and the sack rate +0.210.
 - A table of suggested weights next to your current weights. The suggestions
   come from the positive correlations only.
 
 Read the results with caution:
 
 - The sample is small and the correlations are noisy.
-- The QB signal uses the starter named in the schedule. That is the kickoff
-  starter, the QB the schedule lists for the game. It can differ from the QB who
-  actually played (for example, if a starter is pulled early), so the QB signal
-  is somewhat optimistic here.
+- The QB signal uses the kickoff starter: the QB the schedule names for the game.
+  That is known at kickoff but not at earlier lineup deadlines. In the 2025 data it
+  matches the team's actual top passer in about 96% of team-games; the mismatches
+  are mostly starters hurt or pulled during the game. The QB signal is therefore
+  mildly optimistic here.
+- The implied total uses closing lines: the nflverse total and spread, which are
+  set just before kickoff. A mid-week decision would not have them, so the implied
+  total's correlation (the strongest one here) is flattered.
 - The offensive-line injury signal is left out of the backtest, because the
   tool only has one injury report and one depth-chart snapshot, not one for each
   past week. Its suggested weight is therefore 0, and the suggested weights add
@@ -153,17 +162,26 @@ The steps, in plain words:
    `blend_recent` and `last_n` in `config.toml`.
 2. **Compare each signal to the league.** Every signal is turned into a
    z-score. A z-score says how far a team is from the league average, measured
-   in typical spreads: 0 is average, +1 is one typical spread better.
+   in typical spreads: 0 is average, +1 is one typical spread better. The league
+   is every team playing that week, including games already final, so a team's
+   z does not change when other games in the week finish.
 3. **Shrink small samples.** A z-score based on two games is less trustworthy
-   than one based on ten. So each stat is pulled toward 0 by a factor of
-   games / (games + 4). With 4 games the stat counts half as much.
+   than one based on ten. So five signals are pulled toward 0 by a factor of
+   games / (games + 4): turnovers, sack rate, D/ST points allowed and opponent
+   points per game (by the opponent's games), and own defense (by the defense's
+   games). With 4 games the stat counts half as much. The other signals are not
+   shrunk.
 4. **Add up the weighted signals.** The score is the average of the signals,
    weighted by the table above.
 5. **Handle missing signals.** If a signal has no data for a team (for example,
    no betting line or an unknown QB), that signal is dropped for that team. The
    other weights are scaled up so they still add to a full total. The dropped
    signal names are printed under the defense as `missing: ...`. A missing
-   signal is never treated as average.
+   value is never filled with 0 or treated as average. Two cases to know:
+   `ol_injuries` stays missing until the game injury status is published
+   (practice-report rows alone do not count), and a signal with the same value
+   for every team that week has no spread, so every team gets z = 0 for it. That
+   is "no difference", not "missing", so it is not listed.
 6. **Show a 0 to 100 score.** The weighted average is turned into a display
    score: 50 is average, and the number goes up or down by 25 points per typical
    spread. Scores are capped between 0 and 100.
@@ -193,8 +211,9 @@ Please read these before trusting a single number:
   says so with `weather: roof only` under that defense. Games with no roof
   information are listed as missing weather.
 - **Offensive-line injuries** use the latest depth-chart snapshot and the
-  latest injury report. They do not show what was known earlier in the week,
-  and an unpublished injury report looks like "healthy."
+  latest injury report. They do not show what was known earlier in the week.
+  Until game statuses are published, a starter who appears only in the practice
+  report does not count, and the signal shows as missing rather than "healthy."
 - **The 0 to 100 weights are starting guesses.** The backtest is a small
   sample, and its depth and injury signals are excluded (see Backtest).
 - **Betting lines** come from nflverse. How up to date they are has not been

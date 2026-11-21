@@ -189,11 +189,15 @@ def test_backtest_discloses_qb_hindsight_and_ol_forced_zero(monkeypatch, capsys)
     })
     assert cli.main(["backtest", "--seasons", "2025"]) == 0
     out = capsys.readouterr().out
-    assert "qb_status uses the schedule's actual starter for the week (hindsight)" in out
-    assert "so its correlation and suggested weight are optimistic" in out
-    qb_line = next(line for line in out.splitlines() if line.strip().startswith("qb_status"))
-    assert "(hindsight)" in qb_line
-    assert "ol_injuries is forced to 0" in out
+    assert "qb_status uses the schedule-named kickoff starter" in out
+    assert "known at kickoff, not at earlier lineup deadlines" in out
+    assert "mildly optimistic" in out
+    qb_line = next(line for line in out.splitlines() if line.startswith("  qb_status"))
+    assert "(kickoff starter)" in qb_line
+    assert "(hindsight)" not in out
+    assert "closing lines" in out
+    assert "ol_injuries is excluded (NaN) in the backtest, not forced to 0" in out
+    assert "ol_injuries is forced to 0" not in out
 
 
 def test_empty_teams_list_is_an_error_not_an_empty_table(capsys):
