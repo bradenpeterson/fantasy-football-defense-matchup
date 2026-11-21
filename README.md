@@ -6,7 +6,7 @@ Yahoo. The top of the list is the best matchup this week; the bottom is the
 worst.
 
 It reads public NFL data (schedules, betting lines, team stats, injuries,
-depth charts, play-by-play) through the `nflreadpy` package. You do not need
+play-by-play) through the `nflreadpy` package. You do not need
 any accounts or API keys.
 
 ## What the output looks like
@@ -16,19 +16,14 @@ recent-starter QB rule (`qb_recent_games = 2`), which is Week 11 of the 2026
 season. Your numbers will change as the season moves on.
 
 ```
-Defense                          Opp    H/A    Opp Implied    Opp TO/g    Opp Sack%    Opp QB    Score    implied_total    qb_status    turnovers    sack_rate    dst_pts_allowed    opp_ppg    own_defense    home_away    weather    rest    ol_injuries
--------------------------------  -----  -----  -------------  ----------  -----------  --------  -------  ---------------  -----------  -----------  -----------  -----------------  ---------  -------------  -----------  ---------  ------  -------------
-KC                               ARI    H      12.0           1.0         8.5%         backup    76.9     +0.55            +0.38        -0.04        +0.06        +0.05              +0.04      -0.02          +0.03        +0.01      +0.01   n/a
-  missing: ol_injuries
-BUF                              MIA    H      14.0           1.0         10.2%        backup    76.9     +0.45            +0.38        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01      +0.01   n/a
-  missing: ol_injuries
-PIT                              PHI    A      17.0           1.0         9.7%         backup    70.2     +0.29            +0.38        -0.04        +0.11        +0.05              +0.05      +0.04          -0.03        +0.01      -0.04   n/a
-  missing: ol_injuries
-DEN                              LV     H      15.0           1.2         5.5%         backup    68.8     +0.40            +0.38        +0.01        -0.07        -0.03              -0.00      +0.02          +0.03        +0.01      +0.01   n/a
-  missing: ol_injuries
+Defense    Opp    H/A    Opp Implied    Opp TO/g    Opp Sack%    Opp QB    Score    implied_total    qb_status    turnovers    sack_rate    dst_pts_allowed    opp_ppg    own_defense    home_away    rest
+---------  -----  -----  -------------  ----------  -----------  --------  -------  ---------------  -----------  -----------  -----------  -----------------  ---------  -------------  -----------  ------
+KC         ARI    H      12.0           1.0         8.5%         backup    77.3     +0.57            +0.39        -0.04        +0.06        +0.06              +0.04      -0.02          +0.03        +0.01
+BUF        MIA    H      14.0           1.0         10.2%        backup    77.3     +0.46            +0.39        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01
+PIT        PHI    A      17.0           1.0         9.7%         backup    70.4     +0.30            +0.39        -0.04        +0.11        +0.05              +0.05      +0.04          -0.03        -0.04
+DEN        LV     H      15.0           1.2         5.5%         backup    69.0     +0.41            +0.39        +0.01        -0.07        -0.03              -0.00      +0.02          +0.03        +0.01
 ...
-TEN                              DAL    A      31.5           0.8         4.6%         starter   27.9     -0.48            -0.09        -0.09        -0.11        -0.07              -0.05      +0.02          -0.03        n/a        +0.01   n/a
-  missing: weather, ol_injuries
+TEN        DAL    A      31.5           0.8         4.6%         starter   27.9     -0.48            -0.09        -0.09        -0.11        -0.07              -0.05      +0.02          -0.03        +0.01
 
 Already played this week:
   IND @ HOU
@@ -103,7 +98,7 @@ It prints:
 - A correlation for each signal and for the overall score. A correlation near
   +1 means "higher signal, more points"; near 0 means no clear link. On
   2026-11-20 (with `qb_recent_games = 2`) the overall score had a correlation of
-  +0.316, the implied total +0.324, the sack rate +0.210, and the QB status signal
+  +0.318, the implied total +0.324, the sack rate +0.210, and the QB status signal
   +0.008 (it was +0.091 before the recent-starter rule).
 - A table of suggested weights next to your current weights. The suggestions
   come from the positive correlations only.
@@ -119,10 +114,7 @@ Read the results with caution:
 - The implied total uses closing lines: the nflverse total and spread, which are
   set just before kickoff. A mid-week decision would not have them, so the implied
   total's correlation (the strongest one here) is flattered.
-- The offensive-line injury signal is left out of the backtest, because the
-  tool only has one injury report and one depth-chart snapshot, not one for each
-  past week. Its suggested weight is therefore 0, and the suggested weights add
-  up to 100 while `config.toml` adds up to 112.
+- The suggested weights add up to 100 while `config.toml` adds up to 106.
 - The suggested weights are not proof that a signal predicts points. Treat them
   as ideas to test over more weeks.
 
@@ -139,7 +131,7 @@ The tests use small made-up data sets and do not download anything.
 
 ## How the score works
 
-Each defense gets a score built from 11 signals. Each signal is a number where
+Each defense gets a score built from 9 signals. Each signal is a number where
 higher means a better matchup for the defense.
 
 | Signal | Starting weight | Plain meaning |
@@ -152,9 +144,7 @@ higher means a better matchup for the defense.
 | `opp_ppg` | 5 | The opponent scores few points per game |
 | `own_defense` | 5 | This defense has scored well itself |
 | `home_away` | 3 | The defense is at home |
-| `weather` | 3 | Outdoor game with wind or cold (dome games get no bonus) |
 | `rest` | 3 | The opponent has short rest (bonus) or long rest (penalty) |
-| `ol_injuries` | 3 | The opponent's starting offensive line is missing players |
 
 The steps, in plain words:
 
@@ -178,11 +168,10 @@ The steps, in plain words:
    no betting line or an unknown QB), that signal is dropped for that team. The
    other weights are scaled up so they still add to a full total. The dropped
    signal names are printed under the defense as `missing: ...`. A missing
-   value is never filled with 0 or treated as average. Two cases to know:
-   `ol_injuries` stays missing until the game injury status is published
-   (practice-report rows alone do not count), and a signal with the same value
-   for every team that week has no spread, so every team gets z = 0 for it. That
-   is "no difference", not "missing", so it is not listed.
+   value is never filled with 0 or treated as average. One case to know: a
+   signal with the same value for every team that week has no spread, so every
+   team gets z = 0 for it. That is "no difference", not "missing", so it is not
+   listed.
 6. **Show a 0 to 100 score.** The weighted average is turned into a display
    score: 50 is average, and the number goes up or down by 25 points per typical
    spread. Scores are capped between 0 and 100.
@@ -209,17 +198,8 @@ Please read these before trusting a single number:
   scores. It calculates them from team stats (sacks, turnovers, touchdowns,
   blocked kicks, points allowed) using the Yahoo values in `config.toml`. Small
   differences from Yahoo's own numbers are expected.
-- **Weather** uses the stadium's roof. Outdoor games also get a forecast from
-  Open-Meteo (wind above 15 mph or temperature below 25 F adds a small bonus).
-  If the forecast cannot be reached, the tool uses roof information only and
-  says so with `weather: roof only` under that defense. Games with no roof
-  information are listed as missing weather.
-- **Offensive-line injuries** use the latest depth-chart snapshot and the
-  latest injury report. They do not show what was known earlier in the week.
-  Until game statuses are published, a starter who appears only in the practice
-  report does not count, and the signal shows as missing rather than "healthy."
 - **The 0 to 100 weights are starting guesses.** The backtest is a small
-  sample, and its depth and injury signals are excluded (see Backtest).
+  sample, so its suggested weights are only ideas to test (see Backtest).
 - **Betting lines** come from nflverse. How up to date they are has not been
   verified. Check the lines at your sportsbook if the numbers look stale.
 
@@ -238,8 +218,6 @@ data = {
     "team_stats": ...,
     "pbp": ...,
     "injuries": ...,
-    "depth": ...,
-    "forecast": {},     # optional: team code -> {"temp", "wind"}
 }
 result = pipeline.run(week, None, cfg, data)   # teams=None ranks all defenses
 result["ranked"]   # the ranking table
@@ -247,8 +225,7 @@ result["played"]   # games already played this week
 result["byes"]     # teams on bye
 ```
 
-`dstmatchup/cli.py` shows how the data is loaded (`_load_data`) and how the
-forecasts are fetched (`_forecasts`). Copy those steps for a web app.
+`dstmatchup/cli.py` shows how the data is loaded (`_load_data`). Copy that step for a web app.
 
 ## Project layout
 
@@ -258,7 +235,6 @@ forecasts are fetched (`_forecasts`). Copy those steps for a web app.
 - `dstmatchup/signals.py`: calculates the raw signal numbers for each team from stats.
 - `dstmatchup/scoring.py`: z-scores, shrinkage, and the 0 to 100 score.
 - `dstmatchup/qb.py`: works out each opponent's QB status.
-- `dstmatchup/weather.py`: roof and forecast weather signal, and the Open-Meteo request.
 - `dstmatchup/dst_points.py`: calculates the Yahoo-style D/ST points proxy from games and stats.
 - `dstmatchup/schedule.py`: current week, betting lines, matchups, and byes.
 - `dstmatchup/loaders.py`: downloads the nflverse data, through the cache.

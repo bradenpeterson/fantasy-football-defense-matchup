@@ -3,11 +3,9 @@
 Limitations (by design):
 - Only week W's ranking is computed from weeks < W. Schedule results, scores and
   team stats from week W onward are hidden from pipeline.run.
-- Depth charts and injury reports are single snapshots, so they would leak the
-  future. ol_injuries is therefore always NaN (excluded) in the backtest, and
-  QB status uses only the schedule's named starter versus the prior-weeks
+- Injury reports are a single snapshot, so they would leak the future. QB status
+  therefore uses only the schedule's named starter versus the prior-weeks
   dropback leader (no injury report).
-- The weather signal is roof-only; no forecast is fetched for past games.
 - qb_status uses the schedule-named kickoff starter for the week. That is known at
   kickoff but not at earlier lineup deadlines. In 2025 data the named QB matches the
   actual top passer in about 96% of team-games (mismatches are starters hurt or pulled
@@ -47,7 +45,7 @@ def _spearman(x: pd.Series, y: pd.Series) -> float:
 def signal_correlations(df: pd.DataFrame) -> pd.Series:
     """Spearman correlation of each signal's contribution with actual D/ST points.
 
-    Indexed by the 11 signal names, then `score`. Uses rows where both values
+    Indexed by the 9 signal names, then `score`. Uses rows where both values
     are non-NaN. NaN when there are fewer than two usable rows or no variation.
     """
     actual = pd.to_numeric(df["actual_dst_points"], errors="coerce")
@@ -62,7 +60,7 @@ def signal_correlations(df: pd.DataFrame) -> pd.Series:
 def suggest_weights(corr: pd.Series, current: dict | None = None) -> dict[str, float]:
     """Weights proportional to positive correlations, summing to 100.
 
-    Only the 11 signal names are used. Negative and NaN correlations get weight 0.
+    Only the 9 signal names are used. Negative and NaN correlations get weight 0.
     If nothing is positive, returns `current` unchanged (all zeros when no
     current weights are given). Never writes config.toml.
     """
@@ -194,8 +192,7 @@ def format_report(df: pd.DataFrame, cfg: dict, seasons: list[int]) -> str:
         f"Backtest seasons {', '.join(str(s) for s in seasons)} "
         "(each week scored only from earlier weeks)",
         f"Sample size: {len(df)} defense-weeks ({scored} with a score)",
-        "Caveat: correlations are on a small sample and are noisy. ol_injuries is excluded by design "
-        "(no historical depth or injury snapshots), so its correlation is n/a.",
+        "Caveat: correlations are on a small sample and are noisy.",
         "qb_status uses the schedule-named kickoff starter (known at kickoff, not at earlier lineup "
         "deadlines); mildly optimistic, so its correlation and suggested weight may be too high.",
         "implied_total uses closing lines (nflverse total_line, spread_line), which flatter it versus "
@@ -213,8 +210,7 @@ def format_report(df: pd.DataFrame, cfg: dict, seasons: list[int]) -> str:
     lines.append(tabulate(rows, headers=["signal", "current", "suggested"], tablefmt="simple", disable_numparse=True))
     config_sum = sum(current.values())
     lines.append(
-        f"Note: ol_injuries is excluded (NaN) in the backtest, not forced to 0, so its suggested weight is 0. The suggested "
-        f"weights sum to 100 while config.toml's sum to {config_sum:.0f}."
+        f"Note: the suggested weights sum to 100 while config.toml's sum to {config_sum:.0f}."
     )
     return "\n".join(lines)
 

@@ -10,12 +10,11 @@ from dstmatchup.config import load_config
 REPO_CONFIG = str(Path(__file__).resolve().parent.parent / "config.toml")
 SIGNALS = {
     "implied_total", "qb_status", "turnovers", "sack_rate", "dst_pts_allowed",
-    "opp_ppg", "own_defense", "home_away", "weather", "rest", "ol_injuries",
+    "opp_ppg", "own_defense", "home_away", "rest",
 }
 
 # (home, away) pairings. Weeks 1-4 are played; week 5 is the week under test.
 PAIRS = [("BUF", "DEN"), ("KC", "LA"), ("MIA", "NE"), ("NYJ", "PIT")]
-ROOF = {"BUF": "outdoors", "KC": "outdoors", "MIA": "dome", "NYJ": "outdoors"}
 QB = {
     "BUF": "Josh Allen", "KC": None, "LA": "Matthew Stafford", "MIA": "Tua Tagovailoa",
     "NE": "Drake Maye", "NYJ": "Aaron Rodgers", "PIT": "Russell Wilson",
@@ -38,7 +37,7 @@ def _game(week, home, away, played=False, total=44.0, spread=0.0, home_qb=None, 
     return dict(
         season=2026, game_type="REG", week=week, gameday=f"2026-09-{week:02d}", gametime="13:00",
         home_team=home, away_team=away, home_score=home_score, away_score=away_score, result=result,
-        roof=ROOF.get(home, "dome"), home_rest=7, away_rest=7,
+        home_rest=7, away_rest=7,
         total_line=total, spread_line=spread,
         home_qb_name=home_qb, away_qb_name=away_qb,
     )
@@ -146,35 +145,26 @@ def test_contributions_cover_every_weight(cfg):
 
 
 def test_optional_inputs_missing_do_not_crash(cfg):
-    schedule = make_schedule().drop(columns=["home_rest", "away_rest", "roof"])
+    schedule = make_schedule().drop(columns=["home_rest", "away_rest"])
     data = {"schedule": schedule, "team_stats": make_team_stats()}
     result = pipeline.run(week=5, teams=None, cfg=cfg, data=data)
     ranked = result["ranked"]
     assert len(ranked) == 8
     assert ranked["c_rest"].eq(0.0).all()
-    assert ranked["c_weather"].eq(0.0).all()
     assert ranked["opp_qb_status"].isna().all()
-    assert ranked["c_ol_injuries"].eq(0.0).all()
-    assert all("ol_injuries" in m for m in ranked["missing"])
 
 
-def test_weather_note_roof_only_without_forecast(cfg):
-    result = pipeline.run(week=5, teams=None, cfg=cfg, data=make_data())
-    notes = result["ranked"].set_index("defense")["notes"]
-    assert notes["BUF"] == "weather: roof only"
-    assert notes["MIA"] == ""
+def test_signal_names_are_the_nine_remaining_signals():
+    assert tuple(pipeline.SIGNAL_NAMES) == (
+        "implied_total", "qb_status", "turnovers", "sack_rate", "dst_pts_allowed",
+        "opp_ppg", "own_defense", "home_away", "rest",
+    )
 
 
-def test_forecast_clears_roof_only_note(cfg):
-    data = make_data()
-    data["forecast"] = {
-        "BUF": {"temp": 30.0, "wind": 5.0},
-        "DEN": {"temp": 30.0, "wind": 5.0},
-    }
-    result = pipeline.run(week=5, teams=None, cfg=cfg, data=data)
-    ranked = result["ranked"].set_index("defense")
-    assert ranked.loc["BUF", "notes"] == ""
-    assert "weather" not in ranked.loc["BUF", "missing"]
+def test_ranked_table_has_no_notes_or_weather_or_ol_columns(cfg):
+    ranked = pipeline.run(week=5, teams=None, cfg=cfg, data=make_data())["ranked"]
+    assert "notes" not in ranked.columns
+    assert not [c for c in ranked.columns if "weather" in c or "ol_" in c or "roof" in c]
 
 
 def test_nan_scores_sort_last(cfg):
@@ -195,29 +185,6 @@ def test_teams_filter_keeps_played_game_for_away_side(cfg):
     played = result["played"]
     assert set(played["team"]) == {"CHI", "GB"}
     assert set(played["opponent"]) == {"CHI", "GB"}
-
-
-def _ol_depth(team):
-    names = [("LT", 1), ("LG", 1), ("C", 1), ("RG", 1), ("RT", 1)]
-    return pd.DataFrame([
-        dict(team=team, gsis_id=f"{team}-{pos}", pos_abb=pos, pos_rank=rank, player_name=f"{team} {pos}")
-        for pos, rank in names
-    ])
-
-
-def test_practice_only_opponent_lists_ol_injuries_as_missing(cfg):
-    # BUF faces DEN. DEN has only practice rows (NaN report_status): its OL is unknown.
-    # LA faces KC. KC has a published report with no OL hurt: it is known, not missing.
-    data = make_data()
-    data["depth"] = pd.concat([_ol_depth("DEN"), _ol_depth("KC")], ignore_index=True)
-    data["injuries"] = pd.DataFrame([
-        dict(team="DEN", week=5, gsis_id="DEN-LT", position="T", report_status=np.nan),
-        dict(team="KC", week=5, gsis_id="KC-WR", position="WR", report_status="Out"),
-    ])
-    ranked = pipeline.run(week=5, teams=None, cfg=cfg, data=data)["ranked"].set_index("defense")
-    assert "ol_injuries" in ranked.loc["BUF", "missing"]
-    assert "ol_injuries" not in ranked.loc["LA", "missing"]
-    assert ranked.loc["LA", "c_ol_injuries"] == pytest.approx(0.0)
 
 
 def test_zscores_pool_whole_week_so_played_games_do_not_move_unplayed_teams(cfg):

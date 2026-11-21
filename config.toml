@@ -8,9 +8,7 @@ dst_pts_allowed = 10
 opp_ppg = 5
 own_defense = 5
 home_away = 3
-weather = 3
 rest = 3
-ol_injuries = 3
 
 [scoring]
 shrink_k = 4          # shrinkage n/(n+k)

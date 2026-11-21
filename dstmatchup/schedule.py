@@ -59,17 +59,16 @@ def matchups(schedule: pd.DataFrame, week: int) -> pd.DataFrame:
         played = pd.notna(g.result)
         home_rest = getattr(g, "home_rest", np.nan)
         away_rest = getattr(g, "away_rest", np.nan)
-        roof = getattr(g, "roof", None)
         for team, opp, home, rest, opp_rest in (
             (g.home_team, g.away_team, True, home_rest, away_rest),
             (g.away_team, g.home_team, False, away_rest, home_rest),
         ):
             rows.append(dict(
                 team=team, opponent=opp, home=home, gameday=g.gameday,
-                played=bool(played), rest_days=rest, opp_rest_days=opp_rest, roof=roof,
+                played=bool(played), rest_days=rest, opp_rest_days=opp_rest,
             ))
     return pd.DataFrame(rows, columns=[
-        "team", "opponent", "home", "gameday", "played", "rest_days", "opp_rest_days", "roof",
+        "team", "opponent", "home", "gameday", "played", "rest_days", "opp_rest_days",
     ])
 
 

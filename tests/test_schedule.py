@@ -11,17 +11,17 @@ def _schedule():
         # Week 10: fully played.
         dict(week=10, gameday="2026-11-08", gametime="13:00", away_team="BUF", home_team="MIA",
              spread_line=-2.5, total_line=44.0, result=3.0, away_rest=7, home_rest=7,
-             roof="outdoors", away_qb_name="J. Allen", home_qb_name="T. Tagovailoa"),
+             away_qb_name="J. Allen", home_qb_name="T. Tagovailoa"),
         # Week 11: one played, two unplayed.
         dict(week=11, gameday="2026-11-15", gametime="13:00", away_team="KC", home_team="DEN",
              spread_line=3.5, total_line=45.5, result=-7.0, away_rest=7, home_rest=6,
-             roof="outdoors", away_qb_name="P. Mahomes", home_qb_name="B. Nix"),
+             away_qb_name="P. Mahomes", home_qb_name="B. Nix"),
         dict(week=11, gameday="2026-11-15", gametime="16:25", away_team="DAL", home_team="NYG",
              spread_line=3.5, total_line=45.5, result=None, away_rest=7, home_rest=7,
-             roof="outdoors", away_qb_name="D. Prescott", home_qb_name="D. Jones"),
+             away_qb_name="D. Prescott", home_qb_name="D. Jones"),
         dict(week=11, gameday="2026-11-16", gametime="20:20", away_team="SEA", home_team="SF",
              spread_line=6.0, total_line=40.0, result=None, away_rest=7, home_rest=7,
-             roof="outdoors", away_qb_name="G. Smith", home_qb_name="B. Purdy"),
+             away_qb_name="G. Smith", home_qb_name="B. Purdy"),
     ]
     return pd.DataFrame(rows)
 
@@ -60,7 +60,7 @@ def test_matchups_marks_played_and_bye():
     assert bool(kc.played) is True
     dal = m[m.team == "DAL"].iloc[0]
     assert bool(dal.played) is False
-    assert dal.roof == "outdoors"
+    assert "roof" not in m.columns
     assert dal.rest_days == 7
     den = m[m.team == "DEN"].iloc[0]
     assert den.rest_days == 6

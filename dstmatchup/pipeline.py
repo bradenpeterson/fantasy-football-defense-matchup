@@ -8,11 +8,10 @@ import pandas as pd
 from dstmatchup import dst_points, schedule as sched, signals, scoring
 from dstmatchup.teams import normalize_team
 from dstmatchup.qb import qb_status_table
-from dstmatchup.weather import roof_signal
 
 SIGNAL_NAMES = (
     "implied_total", "qb_status", "turnovers", "sack_rate", "dst_pts_allowed",
-    "opp_ppg", "own_defense", "home_away", "weather", "rest", "ol_injuries",
+    "opp_ppg", "own_defense", "home_away", "rest",
 )
 OPP_SHRUNK = ("turnovers", "sack_rate", "dst_pts_allowed", "opp_ppg")
 OWN_SHRUNK = ("own_defense",)
@@ -43,14 +42,7 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
     # z-scores are over every team playing this week (played games included), so a
     # team's z does not depend on how many of the week's games are already final.
     # Inputs only use weeks before `week`, so the played rows leak nothing.
-    raw = signals.build_signal_frame(
-        matchups, rates, allowed, lines, cfg,
-        qb_table=qb_table,
-        injuries=data.get("injuries"),
-        depth=data.get("depth"),
-        forecast=data.get("forecast"),
-        week=week,
-    )
+    raw = signals.build_signal_frame(matchups, rates, allowed, lines, cfg, qb_table=qb_table)
 
     k = float(cfg["scoring"]["shrink_k"])
     z = pd.DataFrame(index=raw.index)
@@ -73,7 +65,6 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
         "opp_qb_status": _qb_status_strings(qb_table, matchups["opponent"]),
         "score": scored["score"].to_numpy(dtype=float),
         "missing": list(scored["missing"]),
-        "notes": _notes(matchups, data.get("forecast")),
     })
     for name in SIGNAL_NAMES:
         everyone[f"c_{name}"] = scored[name].to_numpy(dtype=float)
@@ -104,13 +95,3 @@ def _qb_status_strings(qb_table, opponents: pd.Series) -> list:
         return [None] * len(opponents)
     statuses = qb_table.set_index("team")["status"]
     return [statuses.get(t) for t in opponents]
-
-
-def _notes(unplayed: pd.DataFrame, forecast: dict | None) -> list[str]:
-    notes = []
-    for team, roof in zip(unplayed["team"], unplayed["roof"]):
-        note = ""
-        if roof_signal(roof) == 0.5 and not (forecast or {}).get(team):
-            note = "weather: roof only"
-        notes.append(note)
-    return notes

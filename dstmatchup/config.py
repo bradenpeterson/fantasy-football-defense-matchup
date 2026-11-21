@@ -13,9 +13,7 @@ REQUIRED = {
         "opp_ppg",
         "own_defense",
         "home_away",
-        "weather",
         "rest",
-        "ol_injuries",
     ],
     "scoring": ["shrink_k", "display_scale", "blend_recent", "last_n"],
     "yahoo": [

@@ -59,6 +59,7 @@ Chosen by the user: A.
 - Weather: roof (dome/closed favors the offense) plus an optional forecast fetch for wind/cold that fails gracefully ("weather: roof only"); retry the forecast outside the sandbox at implementation.
 - OL injuries: a starter (depth-chart rank 1-5 at T/G/C) counts as missing at 1.0 if Out, 0.75 Doubtful, 0.25 Questionable; the total missing weight favors the defense.
 - Rest: opponent on 5 days or fewer gives the defense a small bonus; opponent on 10 or more gives a small penalty.
+- Amended 2026-11-20 (user-approved): the weather and OL-injury signals were removed; home/away stays as a signal (weight 3).
 
 ## Left to the builder
 

@@ -13,16 +13,11 @@ def fake_data(monkeypatch):
     monkeypatch.setattr(cli, "load_team_stats", lambda season: data["team_stats"])
     monkeypatch.setattr(cli, "load_pbp", lambda season: data["pbp"])
     monkeypatch.setattr(cli, "load_injuries", lambda season: data["injuries"])
-    monkeypatch.setattr(cli, "load_depth_charts", lambda season: pd.DataFrame(
-        columns=["team", "dt", "pos_abb", "pos_rank", "gsis_id"]))
-    calls = []
 
-    def fake_forecast(lat, lon, kickoff):
-        calls.append((lat, lon, kickoff))
-        return {"temp": 30.0, "wind": 5.0}
 
-    monkeypatch.setattr(cli, "fetch_forecast", fake_forecast)
-    return calls
+def test_cli_has_no_forecast_depth_chart_or_stadium_code():
+    for name in ("load_depth_charts", "fetch_forecast", "STADIUM_COORDS", "_forecasts"):
+        assert not hasattr(cli, name), name
 
 
 @pytest.fixture
@@ -86,28 +81,6 @@ def test_played_and_bye_sections_printed(fake_data, capsys):
     assert "BAL" in out.split("On bye:")[1]
 
 
-def test_forecast_uses_home_stadium_for_both_teams(fake_data, spy_run, monkeypatch, capsys):
-    cli.main(["--week", "5"])
-    calls = fake_data
-    buf_lat, buf_lon = cli.STADIUM_COORDS["BUF"]
-    assert (buf_lat, buf_lon, "2026-09-05 13:00") in calls
-    forecast = spy_run["data"]["forecast"]
-    assert "BUF" in forecast and "DEN" in forecast
-    assert forecast["BUF"] == forecast["DEN"]
-    assert "MIA" not in forecast
-
-
-def test_forecast_failure_is_not_fatal(fake_data, monkeypatch, capsys):
-    def boom(lat, lon, kickoff):
-        raise RuntimeError("network down")
-
-    monkeypatch.setattr(cli, "fetch_forecast", boom)
-    code = cli.main(["--week", "5"])
-    out = capsys.readouterr().out
-    assert code == 0
-    assert "weather: roof only" in out
-
-
 def test_default_available_teams_used_without_flag(fake_data, spy_run, monkeypatch, capsys):
     cfg = load_config(REPO_CONFIG)
     cfg["defaults"]["available_teams"] = ["buf", "den"]
@@ -120,7 +93,7 @@ def test_nan_score_prints_na():
     ranked = pd.DataFrame([{
         "defense": "ARI", "opponent": "ATL", "home": True, "opp_implied_total": float("nan"),
         "opp_turnovers_pg": float("nan"), "opp_sack_rate": float("nan"), "opp_qb_status": None,
-        "score": float("nan"), "missing": ["turnovers"], "notes": "",
+        "score": float("nan"), "missing": ["turnovers"],
         **{f"c_{s}": 0.0 for s in SIGNALS},
     }])
     text = cli.format_result({"week": 5, "ranked": ranked, "played": pd.DataFrame(), "byes": []})
@@ -174,13 +147,13 @@ def test_backtest_subcommand_dispatches_and_prints_summary(monkeypatch, capsys):
     assert loaded == [2025, 2026]
     assert "Sample size" in out
     assert "small sample" in out
-    assert "ol_injuries is excluded" in out
+    assert "ol_injuries" not in out and "weather" not in out
     assert "Suggested weights" in out
     for name in SIGNALS:
         assert name in out
 
 
-def test_backtest_discloses_qb_hindsight_and_ol_forced_zero(monkeypatch, capsys):
+def test_backtest_discloses_qb_hindsight_and_no_removed_signals(monkeypatch, capsys):
     from dstmatchup import backtest
 
     data = make_data()
@@ -196,8 +169,7 @@ def test_backtest_discloses_qb_hindsight_and_ol_forced_zero(monkeypatch, capsys)
     assert "(kickoff starter)" in qb_line
     assert "(hindsight)" not in out
     assert "closing lines" in out
-    assert "ol_injuries is excluded (NaN) in the backtest, not forced to 0" in out
-    assert "ol_injuries is forced to 0" not in out
+    assert "ol_injuries" not in out and "weather" not in out
 
 
 def test_empty_teams_list_is_an_error_not_an_empty_table(capsys):
@@ -212,7 +184,7 @@ def test_breakdown_prints_na_for_missing_signal_contribution():
     ranked = pd.DataFrame([{
         "defense": "ARI", "opponent": "ATL", "home": True, "opp_implied_total": 22.0,
         "opp_turnovers_pg": 1.0, "opp_sack_rate": 0.05, "opp_qb_status": "starter",
-        "score": 55.0, "missing": ["turnovers"], "notes": "",
+        "score": 55.0, "missing": ["turnovers"],
         **{f"c_{s}": (0.5 if s == "implied_total" else 0.0) for s in pipeline.SIGNAL_NAMES},
     }])
     text = cli.format_result(

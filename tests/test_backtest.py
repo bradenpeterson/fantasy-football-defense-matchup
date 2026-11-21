@@ -9,7 +9,7 @@ from test_pipeline import REPO_CONFIG, make_data
 
 SIGNALS = (
     "implied_total", "qb_status", "turnovers", "sack_rate", "dst_pts_allowed",
-    "opp_ppg", "own_defense", "home_away", "weather", "rest", "ol_injuries",
+    "opp_ppg", "own_defense", "home_away", "rest",
 )
 
 

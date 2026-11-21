@@ -46,7 +46,3 @@ def load_pbp(season: int) -> pd.DataFrame:
 
 def load_injuries(season: int) -> pd.DataFrame:
     return _load("injuries", season, lambda s: nflreadpy.load_injuries([s]))
-
-
-def load_depth_charts(season: int) -> pd.DataFrame:
-    return _load("depth_charts", season, lambda s: nflreadpy.load_depth_charts([s]))

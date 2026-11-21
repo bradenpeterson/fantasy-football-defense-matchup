@@ -4,4 +4,3 @@ pandas
 pyarrow
 pytest
 tabulate
-requests

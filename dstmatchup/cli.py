@@ -7,14 +7,12 @@ from dstmatchup import pipeline
 from dstmatchup import schedule as sched
 from dstmatchup.config import load_config
 from dstmatchup.loaders import (
-    load_depth_charts,
     load_injuries,
     load_pbp,
     load_schedule,
     load_team_stats,
 )
 from dstmatchup.teams import normalize_team
-from dstmatchup.weather import STADIUM_COORDS, fetch_forecast, roof_signal
 from tabulate import tabulate
 
 BASE_HEADERS = ["Defense", "Opp", "H/A", "Opp Implied", "Opp TO/g", "Opp Sack%", "Opp QB", "Score"]
@@ -39,32 +37,7 @@ def _load_data(season: int) -> dict:
         "team_stats": load_team_stats(season),
         "pbp": load_pbp(season),
         "injuries": load_injuries(season),
-        "depth": load_depth_charts(season),
     }
-
-
-def _forecasts(schedule, week: int) -> dict:
-    """Forecast for each outdoor unplayed game, keyed by both teams in the game.
-
-    The stadium is the home team's. A failed fetch leaves that game out.
-    """
-    forecast: dict = {}
-    games = schedule[(schedule["week"] == week) & (schedule["result"].isna())]
-    for g in games.itertuples(index=False):
-        if roof_signal(getattr(g, "roof", None)) != 0.5:
-            continue
-        coords = STADIUM_COORDS.get(g.home_team)
-        if coords is None:
-            continue
-        kickoff = f"{g.gameday} {g.gametime}"
-        try:
-            result = fetch_forecast(coords[0], coords[1], kickoff)
-        except Exception:
-            result = None
-        if result is not None:
-            forecast[g.home_team] = result
-            forecast[g.away_team] = result
-    return forecast
 
 
 def _num(value, pattern: str) -> str:
@@ -89,8 +62,6 @@ def format_result(result: dict, breakdown: bool = False) -> str:
         under = []
         if row.missing:
             under.append(f"  missing: {', '.join(row.missing)}")
-        if row.notes:
-            under.append(f"  notes: {row.notes}")
         defense = "\n".join([row.defense] + under)
         cells = [
             defense,
@@ -161,8 +132,6 @@ def main(argv: list[str] | None = None) -> int:
 
     data = _load_data(args.season)
     week = args.week if args.week is not None else sched.current_week(data["schedule"])
-    data["forecast"] = _forecasts(data["schedule"], week)
-
     result = pipeline.run(week, teams, cfg, data)
     print(format_result(result, breakdown=args.breakdown))
     return 0
