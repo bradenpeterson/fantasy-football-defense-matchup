@@ -203,3 +203,44 @@ def test_week_one_with_recent_rule_is_unknown():
     pbp = pd.DataFrame(columns=["season_type", "week", "posteam", "passer_player_name", "qb_dropback"])
     table = qb_status_table(schedule, pbp, pd.DataFrame(), 1, recent_games=2)
     assert set(table["status"]) == {"unknown"}
+
+
+def test_window_ignores_week_of_and_after_the_week_being_scored():
+    # A.Alpha leads weeks 1-9; B.Beta leads week 10 and then, in the scored week 11
+    # and a later week 12. Only weeks before 11 may count: last two are 9 (A), 10 (B).
+    pbp = pd.DataFrame(
+        _games("JAX", "A.Alpha", range(1, 10))
+        + _games("JAX", "B.Beta", [10, 11, 12])
+    )
+    schedule, injuries = _week_eleven("Bob Beta")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "backup"
+
+
+def test_recent_games_are_regular_season_only():
+    # A.Alpha leads REG weeks 1-8. B.Beta leads only POST weeks 9-10, which must not
+    # count as the last two games. Last two REG games are 7 and 8, both A.
+    pbp = pd.DataFrame(
+        _games("JAX", "A.Alpha", range(1, 9))
+        + [row for week in (9, 10) for row in _plays("JAX", "B.Beta", week, 3, season_type="POST")]
+    )
+    schedule, injuries = _week_eleven("Bob Beta")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "backup"
+
+
+def test_game_without_named_passer_counts_as_a_game_with_no_leader():
+    # Week 9 has dropbacks but no named passer. It is still one of the last two
+    # played games, with no leader, so the recent rule fails. Week 8 and week 10
+    # both led by B.Beta would wrongly pass if week 9 were ignored.
+    unnamed = [dict(season_type="REG", week=9, posteam="JAX", passer_player_name=None, qb_dropback=1)
+               for _ in range(3)]
+    pbp = pd.DataFrame(
+        _games("JAX", "A.Alpha", range(1, 8))
+        + _games("JAX", "B.Beta", [8])
+        + unnamed
+        + _games("JAX", "B.Beta", [10])
+    )
+    schedule, injuries = _week_eleven("Bob Beta")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "backup"

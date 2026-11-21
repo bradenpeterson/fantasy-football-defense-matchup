@@ -123,18 +123,19 @@ def _recent_leaders(pbp: pd.DataFrame, week: int, n_games: int) -> dict[str, lis
         df = df[df["season_type"] == "REG"]
     df = df[df["week"] < week].dropna(subset=["posteam"])
     teams = df["posteam"].map(_team_or_none)
-    df = df.assign(_team=teams.to_numpy())
-    df = df.dropna(subset=["_team", "passer_player_name"])
+    df = df.assign(_team=teams.to_numpy()).dropna(subset=["_team"])
     dropbacks = pd.to_numeric(df["qb_dropback"], errors="coerce").fillna(0.0)
     df = df.assign(_db=dropbacks.to_numpy())
     result: dict[str, list] = {}
     for team, group in df.groupby("_team"):
+        # Game weeks come from every row, so a game with no named passer still
+        # counts as a played game (with no leader).
         weeks = sorted(group["week"].unique())
         if len(weeks) < n_games:
             continue
         leaders = []
         for game_week in weeks[-n_games:]:
-            game = group[group["week"] == game_week]
+            game = group[group["week"] == game_week].dropna(subset=["passer_player_name"])
             totals = game.groupby("passer_player_name")["_db"].sum()
             totals = totals[totals > 0]
             leaders.append(str(totals.idxmax()) if len(totals) else None)
