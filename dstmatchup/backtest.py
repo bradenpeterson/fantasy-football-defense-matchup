@@ -8,6 +8,9 @@ Limitations (by design):
   QB status uses only the schedule's named starter versus the prior-weeks
   dropback leader (no injury report).
 - The weather signal is roof-only; no forecast is fetched for past games.
+- qb_status uses the schedule's actual starter for the week (hindsight): for past
+  games the schedule names who really started, so its correlation and suggested
+  weight are optimistic.
 - Samples are small (a few hundred defense-weeks at most), so correlations are
   noisy and the suggested weights are not evidence of predictive power.
 """
@@ -121,6 +124,12 @@ def _season_rows(season: int, cfg: dict, min_week: int, max_week: int | None, se
         }
         ranked = pipeline.run(week, None, cfg, week_data)["ranked"]
         frame = ranked.rename(columns={"defense": "team"})
+        # score_teams contributes 0.0 for a missing signal; here it becomes NaN so
+        # missing data is excluded from correlations instead of counted as average.
+        for name in SIGNAL_NAMES:
+            is_missing = ranked["missing"].apply(lambda m, n=name: n in m)
+            frame[f"c_{name}"] = frame[f"c_{name}"].where(~is_missing)
+        frame = frame.drop(columns=["missing"])
         frame["week"] = week
         frame["season"] = season
         frames.append(frame)
@@ -183,16 +192,24 @@ def format_report(df: pd.DataFrame, cfg: dict, seasons: list[int]) -> str:
         f"Sample size: {len(df)} defense-weeks ({scored} with a score)",
         "Caveat: correlations are on a small sample and are noisy. ol_injuries is excluded by design "
         "(no historical depth or injury snapshots), so its correlation is n/a.",
+        "qb_status uses the schedule's actual starter for the week (hindsight), so its correlation and "
+        "suggested weight are optimistic.",
         "",
         "Spearman correlation with actual D/ST points:",
     ]
     for name in list(SIGNAL_NAMES) + ["score"]:
-        lines.append(f"  {name:<15} {_fmt(corr.get(name), '{:+.3f}')}")
+        label = f"{name} (hindsight)" if name == "qb_status" else name
+        lines.append(f"  {label:<26} {_fmt(corr.get(name), '{:+.3f}')}")
     lines.append("")
     lines.append("Suggested weights (from positive correlations, sum 100) vs current config.toml weights.")
     lines.append("Printed only; config.toml is not changed.")
     rows = [[name, _fmt(current[name], "{:.1f}"), _fmt(suggested[name], "{:.1f}")] for name in SIGNAL_NAMES]
     lines.append(tabulate(rows, headers=["signal", "current", "suggested"], tablefmt="simple", disable_numparse=True))
+    config_sum = sum(current.values())
+    lines.append(
+        f"Note: ol_injuries is forced to 0 in the backtest, so its suggested weight is 0. The suggested "
+        f"weights sum to 100 while config.toml's sum to {config_sum:.0f}."
+    )
     return "\n".join(lines)
 
 

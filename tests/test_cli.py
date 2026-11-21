@@ -178,3 +178,19 @@ def test_backtest_subcommand_dispatches_and_prints_summary(monkeypatch, capsys):
     assert "Suggested weights" in out
     for name in SIGNALS:
         assert name in out
+
+
+def test_backtest_discloses_qb_hindsight_and_ol_forced_zero(monkeypatch, capsys):
+    from dstmatchup import backtest
+
+    data = make_data()
+    monkeypatch.setattr(backtest, "_season_data", lambda season: {
+        "schedule": data["schedule"], "team_stats": data["team_stats"], "pbp": data["pbp"],
+    })
+    assert cli.main(["backtest", "--seasons", "2025"]) == 0
+    out = capsys.readouterr().out
+    assert "qb_status uses the schedule's actual starter for the week (hindsight)" in out
+    assert "so its correlation and suggested weight are optimistic" in out
+    qb_line = next(line for line in out.splitlines() if line.strip().startswith("qb_status"))
+    assert "(hindsight)" in qb_line
+    assert "ol_injuries is forced to 0" in out

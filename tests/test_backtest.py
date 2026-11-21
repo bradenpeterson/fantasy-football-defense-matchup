@@ -119,3 +119,25 @@ def test_no_lookahead_future_poison_does_not_change_scores(cfg):
         pd.testing.assert_series_equal(
             merged[f"c_{name}_clean"], merged[f"c_{name}_poison"], check_names=False
         )
+
+
+def test_missing_signal_is_nan_not_zero_and_excluded_from_correlation(cfg):
+    # LA's week-5 qb_status is missing: KC has no named QB and no dropback history.
+    data = _with_week5_results(make_data())
+    sched = data["schedule"]
+    final = (sched["home_team"] == "KC") & (sched["week"] == 5)
+    sched.loc[final, ["home_score", "away_score", "result"]] = [24.0, 21.0, 3.0]
+    stats = pd.DataFrame([
+        dict(team=team, opponent_team=opp, week=5, season_type="REG", sacks_suffered=2, attempts=30,
+             passing_interceptions=0, def_sacks=2, def_interceptions=0, fumble_recovery_opp=1, def_tds=0)
+        for team, opp in (("KC", "LA"), ("LA", "KC"))
+    ])
+    data["team_stats"] = pd.concat([data["team_stats"], stats], ignore_index=True)
+    df = backtest.run([2026], cfg, min_week=4, data={2026: data})
+    row = df[(df["team"] == "LA") & (df["week"] == 5)]
+    assert len(row) == 1
+    assert pd.isna(row["c_qb_status"].iloc[0])
+
+    corr = backtest.signal_correlations(df)
+    without = df.drop(row.index)
+    assert corr["qb_status"] == pytest.approx(backtest.signal_correlations(without)["qb_status"])
