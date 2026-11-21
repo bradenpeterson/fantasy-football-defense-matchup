@@ -11,23 +11,23 @@ any accounts or API keys.
 
 ## What the output looks like
 
-Below is a trimmed excerpt from `--breakdown` run on 2026-11-20 (commit
-799b933), which is Week 11 of the 2026 season. Your numbers will change as the
-season moves on.
+Below is a trimmed excerpt from `--breakdown` run on 2026-11-20 with the
+recent-starter QB rule (`qb_recent_games = 2`), which is Week 11 of the 2026
+season. Your numbers will change as the season moves on.
 
 ```
 Defense                          Opp    H/A    Opp Implied    Opp TO/g    Opp Sack%    Opp QB    Score    implied_total    qb_status    turnovers    sack_rate    dst_pts_allowed    opp_ppg    own_defense    home_away    weather    rest    ol_injuries
 -------------------------------  -----  -----  -------------  ----------  -----------  --------  -------  ---------------  -----------  -----------  -----------  -----------------  ---------  -------------  -----------  ---------  ------  -------------
-KC                               ARI    H      12.0           1.0         8.5%         backup    75.9     +0.55            +0.33        -0.04        +0.06        +0.05              +0.04      -0.02          +0.03        +0.01      +0.01   n/a
+KC                               ARI    H      12.0           1.0         8.5%         backup    76.9     +0.55            +0.38        -0.04        +0.06        +0.05              +0.04      -0.02          +0.03        +0.01      +0.01   n/a
   missing: ol_injuries
-BUF                              MIA    H      14.0           1.0         10.2%        backup    75.9     +0.45            +0.33        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01      +0.01   n/a
+BUF                              MIA    H      14.0           1.0         10.2%        backup    76.9     +0.45            +0.38        -0.04        +0.13        +0.07              +0.03      +0.02          +0.03        +0.01      +0.01   n/a
   missing: ol_injuries
-PIT                              PHI    A      17.0           1.0         9.7%         backup    69.1     +0.29            +0.33        -0.04        +0.11        +0.05              +0.05      +0.04          -0.03        +0.01      -0.04   n/a
+PIT                              PHI    A      17.0           1.0         9.7%         backup    70.2     +0.29            +0.38        -0.04        +0.11        +0.05              +0.05      +0.04          -0.03        +0.01      -0.04   n/a
   missing: ol_injuries
-DEN                              LV     H      15.0           1.2         5.5%         backup    67.8     +0.40            +0.33        +0.01        -0.07        -0.03              -0.00      +0.02          +0.03        +0.01      +0.01   n/a
+DEN                              LV     H      15.0           1.2         5.5%         backup    68.8     +0.40            +0.38        +0.01        -0.07        -0.03              -0.00      +0.02          +0.03        +0.01      +0.01   n/a
   missing: ol_injuries
 ...
-TEN                              DAL    A      31.5           0.8         4.6%         starter   27.6     -0.48            -0.10        -0.09        -0.11        -0.07              -0.05      +0.02          -0.03        n/a        +0.01   n/a
+TEN                              DAL    A      31.5           0.8         4.6%         starter   27.9     -0.48            -0.09        -0.09        -0.11        -0.07              -0.05      +0.02          -0.03        n/a        +0.01   n/a
   missing: weather, ol_injuries
 
 Already played this week:
@@ -102,8 +102,9 @@ It prints:
 - A sample size (on 2026-11-20: 654 defense-weeks across 2025 and 2026).
 - A correlation for each signal and for the overall score. A correlation near
   +1 means "higher signal, more points"; near 0 means no clear link. On
-  2026-11-20 (commit 799b933) the overall score had a correlation of +0.321, the
-  implied total +0.324, and the sack rate +0.210.
+  2026-11-20 (with `qb_recent_games = 2`) the overall score had a correlation of
+  +0.316, the implied total +0.324, the sack rate +0.210, and the QB status signal
+  +0.008 (it was +0.091 before the recent-starter rule).
 - A table of suggested weights next to your current weights. The suggestions
   come from the positive correlations only.
 
@@ -196,10 +197,13 @@ to 100; the tool rescales them.
 
 Please read these before trusting a single number:
 
-- **QB status can be wrong for a QB who took over mid-season.** The tool
-  compares the QB named in the schedule with the QB who has thrown the most
-  passes this season. A new starter who took over partway through the season
-  can look like a "backup," so the QB bonus can be too high. The "Opp QB"
+- **QB status can still be wrong for a QB who took over mid-season.** The tool
+  calls the QB named in the schedule a `starter` if that QB has the most
+  dropbacks this season, or if that QB led dropbacks in each of the team's last
+  2 games (`qb_recent_games` in `config.toml`). Otherwise the named QB shows as
+  `backup`, which gives the defense a bonus. A new starter who has led only one
+  recent game, or who is not the season leader and did not lead the last two
+  games, still shows as `backup`, so the bonus can be too high. The "Opp QB"
   column shows this. Check it against the news before you act on it.
 - **D/ST points allowed is a proxy.** The tool does not have official Yahoo D/ST
   scores. It calculates them from team stats (sacks, turnovers, touchdowns,

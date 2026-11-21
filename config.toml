@@ -17,6 +17,7 @@ shrink_k = 4          # shrinkage n/(n+k)
 display_scale = 25    # display score = clip(50 + display_scale * weighted_mean_z, 0, 100)
 blend_recent = 0.5    # weight on season stats vs last-N games
 last_n = 4
+qb_recent_games = 2  # a named QB who led dropbacks in each of the team's last N games counts as starter
 
 # Yahoo D/ST scoring used as a points proxy.
 [yahoo]

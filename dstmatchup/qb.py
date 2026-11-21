@@ -111,6 +111,43 @@ def _dropback_leaders(pbp: pd.DataFrame, week: int) -> dict[str, str]:
     return {team: name for team, (name, _) in leaders.items()}
 
 
+def _recent_leaders(pbp: pd.DataFrame, week: int, n_games: int) -> dict[str, list]:
+    """Per team, the dropback leader of each of its last `n_games` REG games before `week`.
+
+    Games are the team's own played games (byes are skipped), oldest first. A game
+    with no dropbacks has a None leader. Teams with fewer than `n_games` prior games
+    are omitted, so the recent-leader rule does not apply to them.
+    """
+    df = pbp
+    if "season_type" in df.columns:
+        df = df[df["season_type"] == "REG"]
+    df = df[df["week"] < week].dropna(subset=["posteam"])
+    teams = df["posteam"].map(_team_or_none)
+    df = df.assign(_team=teams.to_numpy())
+    df = df.dropna(subset=["_team", "passer_player_name"])
+    dropbacks = pd.to_numeric(df["qb_dropback"], errors="coerce").fillna(0.0)
+    df = df.assign(_db=dropbacks.to_numpy())
+    result: dict[str, list] = {}
+    for team, group in df.groupby("_team"):
+        weeks = sorted(group["week"].unique())
+        if len(weeks) < n_games:
+            continue
+        leaders = []
+        for game_week in weeks[-n_games:]:
+            game = group[group["week"] == game_week]
+            totals = game.groupby("passer_player_name")["_db"].sum()
+            totals = totals[totals > 0]
+            leaders.append(str(totals.idxmax()) if len(totals) else None)
+        result[str(team)] = leaders
+    return result
+
+
+def _led_every_recent_game(named: str, leaders: list | None) -> bool:
+    if not leaders:
+        return False
+    return all(leader is not None and names_match(named, leader) for leader in leaders)
+
+
 def _injury_for(injuries: pd.DataFrame, team: str, week: int, name: str | None):
     if name is None or injuries is None or injuries.empty:
         return None
@@ -123,8 +160,11 @@ def _injury_for(injuries: pd.DataFrame, team: str, week: int, name: str | None):
     return None
 
 
-def qb_status_table(schedule: pd.DataFrame, pbp: pd.DataFrame, injuries: pd.DataFrame, week: int) -> pd.DataFrame:
+def qb_status_table(
+    schedule: pd.DataFrame, pbp: pd.DataFrame, injuries: pd.DataFrame, week: int, recent_games: int = 2,
+) -> pd.DataFrame:
     leaders = _dropback_leaders(pbp, week)
+    recent = _recent_leaders(pbp, week, recent_games) if recent_games >= 1 else {}
     games = schedule[schedule["week"] == week]
     rows = []
     for game in games.itertuples(index=False):
@@ -135,6 +175,8 @@ def qb_status_table(schedule: pd.DataFrame, pbp: pd.DataFrame, injuries: pd.Data
             if team is None:
                 continue
             leader = leaders.get(team)
+            if named is not None and leader is not None and _led_every_recent_game(named, recent.get(team)):
+                leader = named
             evaluated = named if named is not None else leader
             injury = _injury_for(injuries, team, week, evaluated)
             rows.append(dict(

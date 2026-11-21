@@ -50,7 +50,7 @@ Chosen by the user: A.
 ## Decisions (user-confirmed unless marked "my call")
 
 - Lines: nflverse only. Implied total for a team = `(total ± spread)/2` using nflverse's convention (positive spread = home favored); verify with a fixture test.
-- Opponent QB status: derive from (1) the opponent's QB with most dropbacks this season, (2) injury report, (3) schedule-named starter. Named starter != dropback leader means "backup"; injury overrides; conflicts or missing inputs mean "unknown" and the signal is excluded. A backup QB gives a large bonus.
+- Opponent QB status: derive from (1) the opponent's QB with most dropbacks this season, (2) injury report, (3) schedule-named starter. Named starter != dropback leader means "backup"; injury overrides; conflicts or missing inputs mean "unknown" and the signal is excluded. A backup QB gives a large bonus. Amended 2026-11-20 (user-approved): the named starter also counts as `starter` if they led dropbacks in each of the team's last 2 games (`qb_recent_games`), so a mid-season QB change is not labeled backup.
 - Signal 6: standard Yahoo D/ST scoring (sack 1, INT 2, fumble recovery 2, safety 2, TD 6, blocked kick 2, points-allowed tiers), configurable, computed as a proxy from nflverse stats per opponent for games played.
 - Normalization: z-score each signal across 32 teams (distance from league average in units of typical spread), shrink toward the mean by `n/(n+k)` for small samples, blend season and last-4-games (default 50/50). Sacks use sack rate per dropback.
 - Score = sum(weight x normalized signal), displayed 0-100; missing signals dropped, remaining weights rescaled, missing signals named on the row.

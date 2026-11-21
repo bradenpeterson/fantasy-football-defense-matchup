@@ -35,7 +35,10 @@ def run(week, teams, cfg: dict, data: dict) -> dict:
     pbp = data.get("pbp")
     qb_table = None
     if pbp is not None:
-        qb_table = qb_status_table(schedule, pbp, data.get("injuries"), week)
+        qb_table = qb_status_table(
+            schedule, pbp, data.get("injuries"), week,
+            recent_games=int(cfg["scoring"].get("qb_recent_games", 2)),
+        )
 
     # z-scores are over every team playing this week (played games included), so a
     # team's z does not depend on how many of the week's games are already final.

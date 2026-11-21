@@ -122,3 +122,84 @@ def test_qb_status_table_week_three():
     assert got["DEN"] == ("Bo Nix", "out")
     assert pd.isna(got["KC"][0])
     assert got["KC"][1] == "unknown"
+
+
+def _games(team, name, weeks, plays=3):
+    return [row for week in weeks for row in _plays(team, name, week, plays)]
+
+
+def _week_eleven(named_away, injuries=None):
+    schedule = pd.DataFrame({
+        "week": [11],
+        "home_team": ["NYG"],
+        "away_team": ["JAX"],
+        "home_qb_name": [None],
+        "away_qb_name": [named_away],
+    })
+    if injuries is None:
+        injuries = pd.DataFrame(columns=["team", "week", "position", "full_name", "report_status"])
+    return schedule, injuries
+
+
+def test_recent_leader_over_last_two_games_is_starter():
+    # A.Alpha led weeks 1-6 and B.Beta led weeks 7-10. A is the season leader,
+    # but B led each of the last two games, so the named B is a starter.
+    pbp = pd.DataFrame(_games("JAX", "A.Alpha", range(1, 7)) + _games("JAX", "B.Beta", range(7, 11)))
+    schedule, injuries = _week_eleven("Bob Beta")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    got = dict(zip(table["team"], table["status"]))
+    assert got["JAX"] == "starter"
+
+
+def test_one_game_fill_in_stays_backup():
+    # A.Alpha led weeks 1-9; B.Beta led only week 10 (one game) and is named.
+    pbp = pd.DataFrame(_games("JAX", "A.Alpha", range(1, 10)) + _games("JAX", "B.Beta", [10]))
+    schedule, injuries = _week_eleven("Bob Beta")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "backup"
+
+
+def test_season_leader_named_is_starter():
+    # A.Alpha leads weeks 1-6 and B.Beta leads weeks 7-10; A is the season leader.
+    pbp = pd.DataFrame(_games("JAX", "A.Alpha", range(1, 7)) + _games("JAX", "B.Beta", range(7, 11)))
+    schedule, injuries = _week_eleven("Al Alpha")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "starter"
+
+
+def test_team_with_one_prior_game_skips_recent_rule():
+    # Only one prior game, led by A.Alpha. Named B.Beta is not the season leader,
+    # and with fewer than two prior games the recent rule cannot make B a starter.
+    pbp = pd.DataFrame(_games("JAX", "A.Alpha", [1]))
+    schedule, injuries = _week_eleven("Bob Beta")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "backup"
+
+
+def test_recent_games_use_own_played_games_across_a_bye():
+    # JAX has a bye in week 10. Its last two played games are weeks 8 and 9, both led
+    # by B.Beta, so B is a starter for week 11 even though week 10 has no pbp.
+    pbp = pd.DataFrame(_games("JAX", "A.Alpha", range(1, 8)) + _games("JAX", "B.Beta", [8, 9]))
+    schedule, injuries = _week_eleven("Bob Beta")
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "starter"
+
+
+def test_injury_overrides_recent_leader_rule():
+    pbp = pd.DataFrame(_games("JAX", "A.Alpha", range(1, 7)) + _games("JAX", "B.Beta", range(7, 11)))
+    schedule, injuries = _week_eleven("Bob Beta")
+    injuries = pd.DataFrame([
+        dict(team="JAX", week=11, position="QB", full_name="Bob Beta", report_status="Out"),
+    ])
+    table = qb_status_table(schedule, pbp, injuries, 11)
+    assert dict(zip(table["team"], table["status"]))["JAX"] == "out"
+
+
+def test_week_one_with_recent_rule_is_unknown():
+    schedule = pd.DataFrame({
+        "week": [1], "home_team": ["NYG"], "away_team": ["JAX"],
+        "home_qb_name": [None], "away_qb_name": ["Bob Beta"],
+    })
+    pbp = pd.DataFrame(columns=["season_type", "week", "posteam", "passer_player_name", "qb_dropback"])
+    table = qb_status_table(schedule, pbp, pd.DataFrame(), 1, recent_games=2)
+    assert set(table["status"]) == {"unknown"}
