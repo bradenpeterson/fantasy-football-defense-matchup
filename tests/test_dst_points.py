@@ -139,3 +139,21 @@ def test_allowed_to_averages_per_offense():
     assert out.loc["X", "dst_pts_allowed_per_game"] == pytest.approx(6.0)
     assert out.loc["Y", "games"] == 1
     assert "Z" not in out.index
+
+
+def test_away_defense_gets_its_own_points_not_the_opponents(yahoo):
+    # Home KC scores 20 on BUF (away): BUF allowed 20 -> tier 14-20 = 1 point.
+    # KC allowed 13 -> tier 7-13 = 4 points. Own sacks: BUF 3, KC 5.
+    base = {"season_type": "REG", "def_interceptions": 0, "def_safeties": 0, "def_tds": 0,
+            "def_fg_blocks": 0, "def_pat_blocks": 0, "def_punt_blocks": 0,
+            "fumble_recovery_opp": 0, "week": 1}
+    team_stats = pd.DataFrame([
+        {**base, "team": "BUF", "opponent_team": "KC", "def_sacks": 3},
+        {**base, "team": "KC", "opponent_team": "BUF", "def_sacks": 5},
+    ])
+    schedule = pd.DataFrame([
+        {"away_team": "BUF", "home_team": "KC", "away_score": 13, "home_score": 20, "week": 1, "game_type": "REG"},
+    ])
+    out = dst_points_by_game(team_stats, schedule, yahoo).set_index("team")
+    assert out.loc["BUF", "dst_points"] == 3 + 1
+    assert out.loc["KC", "dst_points"] == 5 + 4

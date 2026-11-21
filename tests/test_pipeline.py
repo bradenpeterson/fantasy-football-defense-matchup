@@ -240,3 +240,68 @@ def test_zscores_pool_whole_week_so_played_games_do_not_move_unplayed_teams(cfg)
     for team in mixed.index:
         for col in columns:
             assert mixed.loc[team, col] == pytest.approx(base.loc[team, col]), (team, col)
+
+
+def _only(cfg, name):
+    return {**cfg, "weights": {n: (1.0 if n == name else 0.0) for n in cfg["weights"]}}
+
+
+def test_only_turnovers_matches_hand_calculation(cfg):
+    # Week 5, turnovers the only weight. CHI and GB have no team stats, so the pool is
+    # the 8 teams in PAIRS. DEN has 2 interceptions a game in weeks 1-4, everyone else 0.
+    # BUF faces DEN: raw 2.0; mean 0.25; population var 0.4375, std 0.661438.
+    # BUF z = 1.75 / 0.661438 = 2.645751. DEN has 4 games, shrink 4/(4+4) = 0.5,
+    # c_turnovers = 1.322876, score = 50 + 25 * 1.322876 = 83.0719.
+    # Other defenses: z = -0.25 / 0.661438 = -0.377964, shrunk -0.188982, score 45.2754.
+    ranked = pipeline.run(week=5, teams=None, cfg=_only(cfg, "turnovers"), data=make_data())
+    rows = ranked["ranked"].set_index("defense")
+    assert rows.loc["BUF", "c_turnovers"] == pytest.approx(1.322876, abs=1e-6)
+    assert rows.loc["BUF", "score"] == pytest.approx(83.0719, abs=1e-4)
+    others = [t for t in rows.index if t != "BUF"]
+    assert len(others) == 7
+    for team in others:
+        assert rows.loc[team, "c_turnovers"] == pytest.approx(-0.188982, abs=1e-6), team
+        assert rows.loc[team, "score"] == pytest.approx(45.2754, abs=1e-4), team
+
+
+def test_only_implied_total_matches_hand_calculation(cfg):
+    # Week 5, implied_total the only weight. The defense signal is minus the opponent's
+    # implied total. Pool is all 10 teams playing week 5 (CHI and GB are final but still
+    # in the pool, both at 22.5): BUF -18.5, DEN -25.5, KC -25, LA -25, MIA -20, NE -20,
+    # NYJ -21.5, PIT -24.5, CHI -22.5, GB -22.5. Mean -22.5, population var 5.5, std 2.345208.
+    # BUF: dev +4 -> z 1.705606 -> score 92.6401. MIA and NE: dev +2.5 -> z 1.066004 -> 76.6501.
+    # DEN: dev -3 -> z -1.279204 -> 18.0199. KC: 23.3499. NYJ: 60.6600. PIT: 28.6799.
+    # (Before the whole-week z-pool fix the pool was 8 teams and BUF was 88.1385.)
+    rows = pipeline.run(week=5, teams=None, cfg=_only(cfg, "implied_total"), data=make_data())["ranked"]
+    rows = rows.set_index("defense")
+    assert rows.loc["BUF", "c_implied_total"] == pytest.approx(1.705606, abs=1e-6)
+    assert rows.loc["BUF", "score"] == pytest.approx(92.6401, abs=1e-3)
+    assert rows.loc["MIA", "score"] == pytest.approx(76.6501, abs=1e-3)
+    assert rows.loc["NE", "score"] == pytest.approx(76.6501, abs=1e-3)
+    assert rows.loc["DEN", "score"] == pytest.approx(18.0199, abs=1e-3)
+    assert rows.loc["KC", "score"] == pytest.approx(23.3499, abs=1e-3)
+    assert rows.loc["NYJ", "score"] == pytest.approx(60.6600, abs=1e-3)
+    assert rows.loc["PIT", "score"] == pytest.approx(28.6799, abs=1e-3)
+
+
+def test_contributions_sum_to_score_minus_50_over_25(cfg):
+    # Holds row by row even where a signal is missing (missing contributions are 0),
+    # because the rescaled weights of the present signals sum to 1.
+    ranked = pipeline.run(week=5, teams=None, cfg=cfg, data=make_data())["ranked"]
+    contrib = [f"c_{name}" for name in cfg["weights"]]
+    assert ranked["missing"].map(len).gt(0).any()  # make_data has missing signals on purpose
+    for _, row in ranked.iterrows():
+        assert sum(row[c] for c in contrib) == pytest.approx((row["score"] - 50) / 25, abs=1e-9), row["defense"]
+
+
+def test_sack_rate_orientation_offense_that_gives_up_sacks_helps_defense(cfg):
+    # DEN allows 10 sacks a game in weeks 1-4 (rate 10/40 = 0.25 vs 2/32 = 0.0625 for others).
+    # BUF faces DEN, so BUF's sack_rate signal must be the highest and positive.
+    data = make_data()
+    stats = data["team_stats"]
+    stats.loc[stats["team"] == "DEN", "sacks_suffered"] = 10
+    rows = pipeline.run(week=5, teams=None, cfg=_only(cfg, "sack_rate"), data=data)["ranked"]
+    rows = rows.set_index("defense")
+    assert rows["c_sack_rate"].idxmax() == "BUF"
+    assert rows.loc["BUF", "c_sack_rate"] > 0
+    assert rows.loc["BUF", "opp_sack_rate"] == pytest.approx(0.25)
